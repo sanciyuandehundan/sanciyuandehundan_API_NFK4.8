@@ -249,13 +249,14 @@ namespace sanciyuandehundan_API
         /// <param name="music">
         /// 谱子
         /// </param>
-        public void Music_play(float[,] music)
+        public void Music_play(float[,] music,int index)
         {
             for (int i = 0; i < music.Length / 2; i++)
             {
-                Music_note = Music_power << 16 | (int)music[i, 0] << 8 | Music_index;//将需求转化为midi所需格式
+                Music_note = Music_power << 16 | (int)music[i, 0] << 8 | 0x90+index;//将需求转化为midi所需格式
                 midiOutShortMsg(midiOut, Music_note);//发出声音
                 Thread.Sleep((int)(Music_long * (music[i, 1] / Music_note_base)));//发音间隔
+                Console.WriteLine(index + ":" + System.DateTime.Now.ToString());
             }
         }
 
@@ -284,7 +285,7 @@ namespace sanciyuandehundan_API
             midi.Music_note_base = note_base;
             midi.Music_instrument = instrument;
             midi.Music_power = power;
-            midi.Music_play(sheet);
+            midi.Music_play(sheet,index);
         }
 
         public float[,] p = new float[10, 2]
