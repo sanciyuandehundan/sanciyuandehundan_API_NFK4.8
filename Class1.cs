@@ -96,34 +96,6 @@ namespace sanciyuandehundan_API
     public class Midi
     {
         /// <summary>
-        /// 通道
-        /// </summary>
-        public int Music_index
-        {
-            set
-            {
-                index_0x = 0x90 + value;
-                index_10 = 0xC0 + value;
-            }
-            get { return index_0x; }
-        }
-        private int index_0x;
-        public int index_10;
-        /// <summary>
-        /// 乐器
-        /// </summary>
-        public int Music_instrument
-        {
-            set
-            {
-                midiOutShortMsg(midiOut, value << 8 | index_10);
-                instrument = value;
-            }
-            get { return instrument; }
-        }
-        private int instrument;
-
-        /// <summary>
         /// 音符midi码
         /// </summary>
         public enum Music_note_collection
@@ -207,41 +179,54 @@ namespace sanciyuandehundan_API
             }
         }
 
+        int[] power = new int[16];//音量
+        int[] tempo_minute=new int[16];//一分钟几拍
+        float[] note_base=new float[16];//一拍是几分音符
+        int[] Music_long=new int[16];//一拍几毫秒
+        int[] instrument=new int[16];//乐器
+        int[][,] sheet=new int[16][,];//最终乐谱
+        bool[][] stop=new bool[16][];
+
         /// <summary>
         /// 计算一拍子几秒
         /// </summary>
         /// <param name="pinlv">
         /// 一分钟几拍
         /// </param>
-        public void Music_speed(int pinlv)
+        public void Music_speed(int pinlv,int index)
         {
-            Music_long = 60000 / pinlv;
+            tempo_minute[index] = pinlv;
+            Music_long[index] = 60000 / pinlv;
         }
 
         /// <summary>
         /// 拍子单位（几分音符）,例：32分音符输入32
         /// </summary>
-        public float Music_note_base
+        public void Music_note_base(int note, int index)
         {
-            set { jizhunyinfu_ = 1.0F / value; }
-            get { return jizhunyinfu_; }
+            note_base[index] = 1.0F/note;
         }
-        private float jizhunyinfu_;
 
         /// <summary>
-        /// 力度
+        /// 音量，最高255
         /// </summary>
-        public int Music_power = 0x7f;
+        /// <param name="power_"></param>
+        /// <param name="index"></param>
+        public void Music_power(int power_,int index)
+        {
+            power[index] = power_;
+        }
 
         /// <summary>
-        /// 音符
+        /// 设定乐器
         /// </summary>
-        int Music_note = 0x0;
-
-        /// <summary>
-        /// 一拍子长度
-        /// </summary>
-        int Music_long = 350;
+        /// <param name="instrument_"></param>
+        /// <param name="index"></param>
+        public void Music_instrument(int instrument_,int index)
+        {
+            instrument[index] = instrument_;
+            midiOutShortMsg(midiOut, instrument_ << 8 | 0xC0 + index);
+        }
 
         /// <summary>
         /// 演奏音乐
@@ -249,14 +234,19 @@ namespace sanciyuandehundan_API
         /// <param name="music">
         /// 谱子
         /// </param>
-        public void Music_play(float[,] music,int index)
+        public void Music_play(int[,] music,int index)
         {
             for (int i = 0; i < music.Length / 2; i++)
             {
-                Music_note = Music_power << 16 | (int)music[i, 0] << 8 | 0x90+index;//将需求转化为midi所需格式
-                midiOutShortMsg(midiOut, Music_note);//发出声音
-                Thread.Sleep((int)(Music_long * (music[i, 1] / Music_note_base)));//发音间隔
-                Console.WriteLine(index + ":" + System.DateTime.Now.ToString());
+                //Music_note = power << 16 | (int)music[i, 0] << 8 | 0x90+index;//将需求转化为midi所需格式
+                midiOutShortMsg(midiOut, music[i,0]);//发出声音
+                Thread.Sleep(music[i,1]);
+                if (stop[index][i])
+                {
+                    midiOutShortMsg(midiOut, music[i,0] << 8 | 0x90);
+                }//如果无连音线则停止发音，有则不停止，营造出连续的感觉
+                //Thread.Sleep((int)(Music_long[index] * (music[i, 1] / Music_note_base)));//发音间隔
+                //Console.WriteLine(index + ":" + System.DateTime.Now.ToString());
             }
         }
 
@@ -278,16 +268,30 @@ namespace sanciyuandehundan_API
         /// <param name="sheet">
         /// 乐谱
         /// </param>
-        public void Music_Play(Midi midi,int power,int tempo_minute, int index, int note_base, int instrument, float[,] sheet)
+        public void Music_Play(Midi midi,int power,int tempo_minute, int index, int note_base, int instrument, int[,] sheet)
         {
-            midi.Music_speed(tempo_minute);
-            midi.Music_index = index;
-            midi.Music_note_base = note_base;
-            midi.Music_instrument = instrument;
-            midi.Music_power = power;
+            midi.Music_speed(tempo_minute, index);
+            midi.Music_note_base(note_base,index);
+            midi.Music_instrument(instrument,index);
+            midi.Music_power(power, index);
             midi.Music_play(sheet,index);
         }
+        public void Music_parse(string p0,int index)
+        {
+            string[] p1 = p0.Split('|');
+            string[] zan;
+            string[] p = new string[p1.Length];//音高
+            string[] l = new string[p1.Length];//音符
+            for(int i=0; i<p1.Length; i++)
+            {
+                //zan[i] = p1[i].Split(',');
+                zan = p1[i].Split(',');
+                p[i] = zan[0];
+                l[i] = zan[1];
+                Console.WriteLine(p[i]+" "+l[i]);
+            }//将每个音符分别存储
 
+        }
         public float[,] p = new float[10, 2]
         {
             {65,0.25F},
