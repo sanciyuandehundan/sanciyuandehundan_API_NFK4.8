@@ -43,14 +43,14 @@ namespace sanciyuandehundan_API
         /// <param name="winW"></param>
         public void Tu(int tuH, int tuW, int winH, int winW)
         {
-            double zany0;//最终结果
-            double zany1;//form数据
-            double zany2;//图片数据
-            double zanx0;//最终结果
-            double zanx1;//form数据
-            double zanx2;//图片数据
-            double bilix;//屏幕比例宽
-            double biliy;//屏幕比例高
+            double zany0 = new float();//最终结果
+            double zany1 = new float();//form数据
+            double zany2 = new float();//图片数据
+            double zanx0 = new float();//最终结果
+            double zanx1 = new float();//form数据
+            double zanx2 = new float();//图片数据
+            double bilix = new float();//屏幕比例宽
+            double biliy = new float();//屏幕比例高
             bili(winH, winW);
             willreturn[1] = winW / willreturn[0];
             willreturn[0] = winH / willreturn[0];
@@ -95,6 +95,15 @@ namespace sanciyuandehundan_API
     }
     public class Midi
     {
+        public int[] power = new int[16];//音量
+        public int[] tempo_minute = new int[16];//一分钟几拍
+        public float[] note_base = new float[16];//一拍是几分音符
+        public int[] note_long = new int[16];//一拍几毫秒
+        public int[] instrument = new int[16];//乐器
+        public int[][,] music = new int[16][,];//最终乐谱（主）
+        public bool[][] stop = new bool[16][];//和下一个音符间是否有连音线
+        public int time=0;//曲子时长几毫秒
+
         /// <summary>
         /// 音符midi码
         /// </summary>
@@ -179,14 +188,6 @@ namespace sanciyuandehundan_API
             }
         }
 
-        int[] power = new int[16];//音量
-        int[] tempo_minute=new int[16];//一分钟几拍
-        float[] note_base=new float[16];//一拍是几分音符
-        int[] Music_long=new int[16];//一拍几毫秒
-        int[] instrument=new int[16];//乐器
-        int[][,] sheet=new int[16][,];//最终乐谱
-        bool[][] stop=new bool[16][];
-
         /// <summary>
         /// 计算一拍子几秒
         /// </summary>
@@ -196,7 +197,7 @@ namespace sanciyuandehundan_API
         public void Music_speed(int pinlv,int index)
         {
             tempo_minute[index] = pinlv;
-            Music_long[index] = 60000 / pinlv;
+            note_long[index] = 60000 / pinlv;
         }
 
         /// <summary>
@@ -236,18 +237,40 @@ namespace sanciyuandehundan_API
         /// </param>
         public void Music_play(int[,] music,int index)
         {
-            for (int i = 0; i < music.Length / 2; i++)
+            int l_0=music.GetLength(0);
+            int l_1=music.GetLength(1);
+            for (int i = 0; i < l_0; i++)
             {
-                //Music_note = power << 16 | (int)music[i, 0] << 8 | 0x90+index;//将需求转化为midi所需格式
-                midiOutShortMsg(midiOut, music[i,0]);//发出声音
-                Thread.Sleep(music[i,1]);
-                if (stop[index][i])
+                if (music[i, 0] != 0)
                 {
-                    midiOutShortMsg(midiOut, music[i,0] << 8 | 0x90);
-                }//如果无连音线则停止发音，有则不停止，营造出连续的感觉
-                //Thread.Sleep((int)(Music_long[index] * (music[i, 1] / Music_note_base)));//发音间隔
-                //Console.WriteLine(index + ":" + System.DateTime.Now.ToString());
+                    for (int o = 0; o < l_1 - 2; o++)
+                    {
+                        midiOutShortMsg(midiOut, music[i, o]);
+                    }//发出这个和弦
+
+                    if (!stop[index][i])//如果无连音线则停止发音，有则不停止，营造出连续的感觉
+                    {
+                        Thread.Sleep(music[i, l_1 - 1] - note_long[index] / 10);
+                        for (int o = 0; o < l_1 - 2; o++)
+                        {
+                            midiOutShortMsg(midiOut, music[i, o] - (power[index] << 16));
+                        }
+                    }//无连音线
+                    else
+                    {
+                        if (music[i, 0] == music[i + 1, 0])//两音相同
+                        {
+                            Thread.Sleep(music[i, l_1 - 1] + music[i + 1, l_1 - 1]);
+                            i++;//下个音不重复发音
+                        }
+                        else Thread.Sleep(music[i, l_1 - 1]);//两音不同
+                    }//有连音线
+                }
             }
+            for (int o = 0; o < l_1 - 2; o++)
+            {
+                midiOutShortMsg(midiOut, music[l_0-1, o] - (power[index] << 16));
+            }//结束尾音
         }
 
         /// <summary>
@@ -265,45 +288,147 @@ namespace sanciyuandehundan_API
         /// <param name="instrument">
         /// 乐器
         /// </param>
-        /// <param name="sheet">
+        /// <param name="music">
         /// 乐谱
         /// </param>
-        public void Music_Play(Midi midi,int power,int tempo_minute, int index, int note_base, int instrument, int[,] sheet)
+        public void Music_Play(Midi midi,int power,int tempo_minute, int index, int note_base, int instrument, int[,] music)
         {
             midi.Music_speed(tempo_minute, index);
             midi.Music_note_base(note_base,index);
             midi.Music_instrument(instrument,index);
             midi.Music_power(power, index);
-            midi.Music_play(sheet,index);
+            midi.Music_play(music,index);
         }
-        public void Music_parse(string p0,int index)
+
+        /// <summary>
+        /// 解析简谱输入
+        /// </summary>
+        /// <param name="p0"></param>
+        /// <param name="index"></param>
+        /// <param name="diaoshi"></param>
+        public void Music_parse(string p0,int index,int diaoshi)
         {
             string[] p1 = p0.Split('|');
-            string[] zan;
-            string[] p = new string[p1.Length];//音高
-            string[] l = new string[p1.Length];//音符
-            for(int i=0; i<p1.Length; i++)
+            string[] zan1;
+            int high_;
+            int note;
+            int saigaohe=0;
+
+            for(int i = 0; i < p1.Length; i++)
             {
-                //zan[i] = p1[i].Split(',');
+                if (p1[i].Split('|')[0].Split(',').Length > saigaohe) saigaohe = p1[i].Split('|')[0].Split(',').Length;
+            }//检测最多一个和弦有几个音
+
+            music[index]=new int[p1.Length,saigaohe+1];
+            string[] zan2 = new string[saigaohe];
+            stop[index] = new bool[p1.Length];
+            string out_="";
+
+            for(int i=0; i<p1.Length; i++)// -1/+1/1,4|
+            {
+                high_ = 0;
+                note = 0;
+
+                if (p1[i] == "-")//|-|
+                {
+                    stop[index][i-1]= true;
+                    continue;
+                }
+
+                zan1 = p1[i].Split(',');
+                music[index][i, saigaohe-1] = int.Parse(zan1[1][0].ToString());//取出音符
+                for (int k = 1; k < zan1[1].Length; k++)
+                {
+                    music[index][i, saigaohe-1] += music[index][i, saigaohe-1] / (2 * k);
+                }//附点音符
+
+                /*Console.WriteLine(zan1[1]);
+                Console.WriteLine(note_base[index]);
+                Console.WriteLine((1.0F / music[index][i, saigaohe - 1]) / note_base[index]);
+                Console.WriteLine(note_long[index]);*/
+                music[index][i, saigaohe] = (int)(note_long[index] * ((1.0F / music[index][i, saigaohe - 1]) / note_base[index]));//计算该音符长度
+
+                zan2 = zan1[0].Split('/');// -1/+1/1
+                for(int o=0; o < zan2.Length; o++)// -1 +1 1
+                {
+                    foreach(char s in zan2[o])// -1
+                    {
+                        if (s == '+') high_++;
+                        else if (s == '-') high_--;
+                        else note = s - '0';
+                    }
+                    music[index][i,o]= 59 + note + (12 * high_) + diaoshi;//获取该音符midi代码
+                    music[index][i,o]= power[index] << 16 | music[index][i,o] << 8 | 0x90 + index;//转换为midi输入格式
+                    out_+= music[index][i, o].ToString() + ',';
+                }
+                out_ += music[index][i, saigaohe];
+                Console.WriteLine(out_);
+                out_ = "";
+                time += music[index][i, saigaohe];
+            }
+            Console.WriteLine("time:" + time.ToString());
+            /*for (int i=0; i<p1.Length; i++)
+            {
+                stop[index][i] = true;
+
                 zan = p1[i].Split(',');
-                p[i] = zan[0];
-                l[i] = zan[1];
-                Console.WriteLine(p[i]+" "+l[i]);
-            }//将每个音符分别存储
+                p[i] = zan[0];//音阶
+                l[i] = zan[1];//音符
+                high_ = 0;
+                //Console.WriteLine(p[i]+" "+l[i]);
+
+                if (p[i].Contains("/"))
+                {
+                    string[] zan_h= p[i].Split('/');
+                    p[i]= zan_h[0];
+                    p_h[i,0]= zan_h[1];
+                    if (zan_h.Length > 2) p_h[i, 1] = zan_h[2];
+
+                    //music_he[index][i,0]=p[i].Split('/')[0];
+                }
+
+                for (int k = 0; k < p[i].Length; k++)
+                {
+                    if (p[i][k] == '-')
+                    {
+                        high_--;
+                    }
+                    else if (p[i][k]=='+')
+                    {
+                        high_++;
+                    }
+                    else
+                    {
+                        note = int.Parse(p[i][k].ToString());
+                    }
+                }//计算单个音符的音高
+                sheets[index][i, 0] = 59 + note + (12 * high_) + diaoshi;
+
+                sheets[index][i, 1] = (int)(note_long[index] * ((1.0F / (l[i][0] - '0')) / note_base[index]));//音符基本长度
+                for (int k=1; k < l[i].Length;k++)
+                {
+                    sheets[index][i, 1] += sheets[index][i, 1] / 2*k;
+                }//附点音符
+
+                music[index][i, 0] = power[index] << 16 | sheets[index][i, 0] << 8 | 0x90 + index;
+                music[index][i, 4] = sheets[index][i, 1];
+                Console.WriteLine(music[index][i, 0].ToString() + '/' + music[index][i,1].ToString());
+            }//将每个音符分别存储*/
 
         }
-        public float[,] p = new float[10, 2]
+
+        public int[,] p = new int[10, 2]
         {
-            {65,0.25F},
-            {64,0.25F},
-            {67,0.25F},
-            {65,0.25F},
-            {60,0.25F},
-            {65,0.25F},
-            {64,0.25F},
-            {67,0.25F},
-            {65,0.25F},
-            {60,0.25F}
+            {65,750},
+            {64,750},
+            {67,750},
+            {65,750},
+            {60,750},
+            {65,750},
+            {64,750},
+            {67,750},
+            {65,750},
+            {60,750}
         };
         /*
             60  62  64  65  67   69  71
