@@ -102,7 +102,8 @@ namespace sanciyuandehundan_API
         public int[] instrument = new int[16];//乐器
         public int[][,] music = new int[16][,];//最终乐谱（主）
         public bool[][] stop = new bool[16][];//和下一个音符间是否有连音线
-        public int time=0;//曲子时长几毫秒
+        public int[] time =new int[16];//曲子时长几毫秒
+        public int[] stop_number=new int[16];//几个连音线
 
         /// <summary>
         /// 音符midi码
@@ -237,18 +238,21 @@ namespace sanciyuandehundan_API
         /// </param>
         public void Music_play(int[,] music,int index)
         {
+            Console.WriteLine(System.DateTime.Now);
+            
             int l_0=music.GetLength(0);
             int l_1=music.GetLength(1);
             for (int i = 0; i < l_0; i++)
             {
                 if (music[i, 0] != 0)
                 {
+                    Console.WriteLine(stop[index][i]+":"+i);
                     for (int o = 0; o < l_1 - 2; o++)
                     {
                         midiOutShortMsg(midiOut, music[i, o]);
                     }//发出这个和弦
 
-                    if (!stop[index][i])//如果无连音线则停止发音，有则不停止，营造出连续的感觉
+                    if (stop[index][i]==false)//如果无连音线则停止发音，有则不停止，营造出连续的感觉
                     {
                         Thread.Sleep(music[i, l_1 - 1] - note_long[index] / 10);
                         for (int o = 0; o < l_1 - 2; o++)
@@ -258,10 +262,13 @@ namespace sanciyuandehundan_API
                     }//无连音线
                     else
                     {
-                        if (music[i, 0] == music[i + 1, 0])//两音相同
+                        if (music[i, 0] == music[i + 2, 0])//两音相同
                         {
+                            Console.WriteLine(i);
                             Thread.Sleep(music[i, l_1 - 1] + music[i + 1, l_1 - 1]);
                             i++;//下个音不重复发音
+                            i++;
+                            continue;
                         }
                         else Thread.Sleep(music[i, l_1 - 1]);//两音不同
                     }//有连音线
@@ -271,6 +278,7 @@ namespace sanciyuandehundan_API
             {
                 midiOutShortMsg(midiOut, music[l_0-1, o] - (power[index] << 16));
             }//结束尾音
+            Console.WriteLine(System.DateTime.Now);
         }
 
         /// <summary>
@@ -313,7 +321,7 @@ namespace sanciyuandehundan_API
             int high_;
             int note;
             int saigaohe=0;
-
+            time[index] = 0;
             for(int i = 0; i < p1.Length; i++)
             {
                 if (p1[i].Split('|')[0].Split(',').Length > saigaohe) saigaohe = p1[i].Split('|')[0].Split(',').Length;
@@ -332,6 +340,7 @@ namespace sanciyuandehundan_API
                 if (p1[i] == "-")//|-|
                 {
                     stop[index][i-1]= true;
+                    stop_number[index]++;
                     continue;
                 }
 
@@ -341,12 +350,8 @@ namespace sanciyuandehundan_API
                 {
                     music[index][i, saigaohe-1] += music[index][i, saigaohe-1] / (2 * k);
                 }//附点音符
-
-                /*Console.WriteLine(zan1[1]);
-                Console.WriteLine(note_base[index]);
-                Console.WriteLine((1.0F / music[index][i, saigaohe - 1]) / note_base[index]);
-                Console.WriteLine(note_long[index]);*/
                 music[index][i, saigaohe] = (int)(note_long[index] * ((1.0F / music[index][i, saigaohe - 1]) / note_base[index]));//计算该音符长度
+                time[index] += music[index][i, saigaohe]- note_long[index] / 10;//计算此乐曲时间
 
                 zan2 = zan1[0].Split('/');// -1/+1/1
                 for(int o=0; o < zan2.Length; o++)// -1 +1 1
@@ -364,9 +369,8 @@ namespace sanciyuandehundan_API
                 out_ += music[index][i, saigaohe];
                 Console.WriteLine(out_);
                 out_ = "";
-                time += music[index][i, saigaohe];
             }
-            Console.WriteLine("time:" + time.ToString());
+            Console.WriteLine("time:" + time[index].ToString());
             /*for (int i=0; i<p1.Length; i++)
             {
                 stop[index][i] = true;
