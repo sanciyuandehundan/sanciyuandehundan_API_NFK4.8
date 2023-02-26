@@ -95,7 +95,11 @@ namespace sanciyuandehundan_API
     }
     public class Midi
     {
-        public int[] power = new int[16];//音量
+        public int[] xiaojie=new int[16];//一小节几拍
+        public int[] xiaojie_split=new int[16];//一小节可以被分成几个三拍
+        public int[][] xiaojie_split_anchored = new int[16][];//哪几拍是强的
+        public int[] power_base = new int[16];//每个声部基准音量 
+        public int[][] power = new int[16][];//每个音符音量
         public int[] tempo_minute = new int[16];//一分钟几拍
         public float[] note_base = new float[16];//一拍是几分音符
         public int[] note_long = new int[16];//一拍几毫秒
@@ -204,9 +208,30 @@ namespace sanciyuandehundan_API
         /// <summary>
         /// 拍子单位（几分音符）,例：32分音符输入32
         /// </summary>
-        public void Music_note_base(int note, int index)
+        public void Music_note_base(int note, int xiaojie_, int index)
         {
-            note_base[index] = 1.0F/note;
+            int k=0;
+            xiaojie[index] = xiaojie_;
+            Console.WriteLine("一小节几拍" + xiaojie[index]);
+            if (xiaojie_ != 4)
+            {
+                k = 3;
+                xiaojie_split[index] = xiaojie_ / 3;
+                Console.WriteLine("一小节可以被切成几个3拍" + xiaojie_split[index]);
+            }
+            else
+            {
+                k = 2;
+                xiaojie_split[index] = xiaojie_ / 2;
+                Console.WriteLine("一小节可以被切成几个2拍" + xiaojie_split[index]);
+            }//一小节4拍是特殊的
+            xiaojie_split_anchored[index] = new int[xiaojie_split[index]];
+            xiaojie_split_anchored[index][0] = 0;//第一拍必定是强拍
+            for(int i = 1; i < xiaojie_split[index]; i++)
+            {
+                xiaojie_split_anchored[index][i] = i * k;
+            }
+            note_base[index] = 1.0F / note;
         }
 
         /// <summary>
@@ -214,9 +239,11 @@ namespace sanciyuandehundan_API
         /// </summary>
         /// <param name="power_"></param>
         /// <param name="index"></param>
-        public void Music_power(int power_,int index)
+        public void Music_power(int power_,string sheet,int index)
         {
-            power[index] = power_;
+
+            power[index] = new int[sheet.Split('|').Length];
+            power_base[index] = power_;
         }
 
         /// <summary>
@@ -257,7 +284,7 @@ namespace sanciyuandehundan_API
                         Thread.Sleep(music[i, l_1 - 1] - note_long[index] / 10);
                         for (int o = 0; o < l_1 - 2; o++)
                         {
-                            midiOutShortMsg(midiOut, music[i, o] - (power[index] << 16));
+                            midiOutShortMsg(midiOut, music[i, o] - (power[index][i] << 16));
                         }
                     }//无连音线
                     else
@@ -276,7 +303,7 @@ namespace sanciyuandehundan_API
             }
             for (int o = 0; o < l_1 - 2; o++)
             {
-                midiOutShortMsg(midiOut, music[l_0-1, o] - (power[index] << 16));
+                midiOutShortMsg(midiOut, music[l_0-1, o] - (power[index][0] << 16));
             }//结束尾音
             Console.WriteLine(System.DateTime.Now);
         }
@@ -299,12 +326,12 @@ namespace sanciyuandehundan_API
         /// <param name="music">
         /// 乐谱
         /// </param>
-        public void Music_Play(Midi midi,int power,int tempo_minute, int index, int note_base, int instrument, int[,] music)
+        public void Music_Play(Midi midi,int power,int tempo_minute, int index, int note_base, int instrument, int[,] music,int xiaojie)
         {
             midi.Music_speed(tempo_minute, index);
-            midi.Music_note_base(note_base,index);
+            midi.Music_note_base(note_base,xiaojie,index);
             midi.Music_instrument(instrument,index);
-            midi.Music_power(power, index);
+            //midi.Music_power(power,, index);
             midi.Music_play(music,index);
         }
 
@@ -322,13 +349,17 @@ namespace sanciyuandehundan_API
             int note;
             int saigaohe=0;
             time[index] = 0;
+            float xiaojie_paizi_now=0;//现在在第几拍
+
+            for (int i = 0; i < xiaojie_split_anchored[index].GetLength(0);i++)Console.WriteLine(xiaojie_split_anchored[index][i]);//哪些拍子是被标记的
+
             for(int i = 0; i < p1.Length; i++)
             {
                 if (p1[i].Split('|')[0].Split(',').Length > saigaohe) saigaohe = p1[i].Split('|')[0].Split(',').Length;
             }//检测最多一个和弦有几个音
 
             music[index]=new int[p1.Length,saigaohe+1];
-            string[] zan2 = new string[saigaohe];
+            string[] zan2;
             stop[index] = new bool[p1.Length];
             string out_="";
 
@@ -342,10 +373,42 @@ namespace sanciyuandehundan_API
                     stop[index][i-1]= true;
                     stop_number[index]++;
                     continue;
-                }
+                }//连音线
 
                 zan1 = p1[i].Split(',');
                 music[index][i, saigaohe-1] = int.Parse(zan1[1][0].ToString());//取出音符
+                xiaojie_paizi_now += (1.0F/music[index][i, saigaohe - 1])/note_base[index];//记录现在到这小节的第几拍了
+                if (xiaojie_paizi_now >= xiaojie[index]) xiaojie_paizi_now -= xiaojie[index];//每过一个小节重置拍子进度
+                bool a=false;//是否是强拍
+                for(int u = 0; u < xiaojie_split[index]; u++)
+                {
+                    if ((int)(xiaojie_paizi_now-1) == (int)(xiaojie_split_anchored[index][u]))//检测此音符所在的拍子是否为被标记为强拍的拍子
+                    {
+                        a = true;
+                        Console.Write(xiaojie_paizi_now - 1 + " ");
+                        Console.Write((int)(xiaojie_split_anchored[index][u]) + " ");
+                        if (u == 0)//如果是小节的第一拍则为强拍
+                        {
+                            power[index][i] = (int)(power_base[index] * 1.1);
+                            Console.Write("1 ");
+                        }
+                        else//不是则为次强拍
+                        {
+                            power[index][i] = power_base[index];
+                            Console.Write("0 ");
+                        }
+                        break;
+                    }
+                }
+                if (!a)
+                {
+                    power[index][i] = (int)(power_base[index] * 0.9);
+                    Console.Write(xiaojie_paizi_now - 1 + " ");
+                    Console.Write((int)(xiaojie_split_anchored[index] [xiaojie_split_anchored[index].GetLength(0)-1] ) + " ");
+                    Console.Write("-1 ");
+                }//如果没被标记为强拍则为弱拍
+                //节奏，拍的强弱
+
                 for (int k = 1; k < zan1[1].Length; k++)
                 {
                     music[index][i, saigaohe-1] += music[index][i, saigaohe-1] / (2 * k);
@@ -363,9 +426,10 @@ namespace sanciyuandehundan_API
                         else note = s - '0';
                     }
                     music[index][i,o]= 59 + note + (12 * high_) + diaoshi;//获取该音符midi代码
-                    music[index][i,o]= power[index] << 16 | music[index][i,o] << 8 | 0x90 + index;//转换为midi输入格式
+                    music[index][i,o]= power[index][i] << 16 | music[index][i,o] << 8 | 0x90 + index;//转换为midi输入格式
                     out_+= music[index][i, o].ToString() + ',';
-                }
+                }//音阶
+
                 out_ += music[index][i, saigaohe];
                 Console.WriteLine(out_);
                 out_ = "";
