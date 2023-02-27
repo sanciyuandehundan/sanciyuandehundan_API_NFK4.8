@@ -104,10 +104,13 @@ namespace sanciyuandehundan_API
         public float[] note_base = new float[16];//一拍是几分音符
         public int[] note_long = new int[16];//一拍几毫秒
         public int[] instrument = new int[16];//乐器
-        public int[][,] music = new int[16][,];//最终乐谱（主）
+        public int[][,] music_zan = new int[16][,];//暂存乐谱
+        public int[][,] music = new int[16][,];//暂存乐谱1
+        public int[][,] me = new int[16][,];//最终乐谱
         public bool[][] stop = new bool[16][];//和下一个音符间是否有连音线
         public int[] time =new int[16];//曲子时长几毫秒
         public int[] stop_number=new int[16];//几个连音线
+        public int[] note_number = new int[16];//乐谱的和弦最多有几个音符
 
         /// <summary>
         /// 音符midi码
@@ -172,6 +175,9 @@ namespace sanciyuandehundan_API
         /// <returns></returns>
         [DllImport("winmm.dll")]
         public extern static int midiOutShortMsg(int lphMidiOut, int dwMsg);
+
+        [DllImport("winmm.dll")]
+        public extern static int midiOutLongMsg(int lphMidiOut, int pmh,uint cbmh);//不对劲
 
         /// <summary>
         /// midi设备的句柄
@@ -258,13 +264,27 @@ namespace sanciyuandehundan_API
         }
 
         /// <summary>
+        /// 设置调式
+        /// </summary>
+        /// <param name="diaoshi"></param>
+        /// <param name="index"></param>
+        public void Music_diaoshi(int diaoshi,int index)
+        {
+
+        }
+
+        /// <summary>
         /// 演奏音乐
         /// </summary>
         /// <param name="music">
         /// 谱子
         /// </param>
-        public void Music_play(int[,] music,int index)
+        public void Music_play(int[,] music,int index)//
         {
+            
+        }
+
+        /*
             Console.WriteLine(System.DateTime.Now);
             
             int l_0=music.GetLength(0);
@@ -306,34 +326,7 @@ namespace sanciyuandehundan_API
                 midiOutShortMsg(midiOut, music[l_0-1, o] - (power[index][0] << 16));
             }//结束尾音
             Console.WriteLine(System.DateTime.Now);
-        }
-
-        /// <summary>
-        /// 封装后音乐播放器
-        /// </summary>
-        /// <param name="tempo_minute">
-        /// 一分钟几拍
-        /// </param>
-        /// <param name="index">
-        /// 通道
-        /// </param>
-        /// <param name="note_base">
-        /// 一拍子是几分音符，例如：四分音符输入4
-        /// </param>
-        /// <param name="instrument">
-        /// 乐器
-        /// </param>
-        /// <param name="music">
-        /// 乐谱
-        /// </param>
-        public void Music_Play(Midi midi,int power,int tempo_minute, int index, int note_base, int instrument, int[,] music,int xiaojie)
-        {
-            midi.Music_speed(tempo_minute, index);
-            midi.Music_note_base(note_base,xiaojie,index);
-            midi.Music_instrument(instrument,index);
-            //midi.Music_power(power,, index);
-            midi.Music_play(music,index);
-        }
+            *///效率太低，被弃用，原play函数
 
         /// <summary>
         /// 解析简谱输入
@@ -350,15 +343,19 @@ namespace sanciyuandehundan_API
             int saigaohe=0;
             time[index] = 0;
             float xiaojie_paizi_now=0;//现在在第几拍
+            stop_number[index] = 0;
 
-            for (int i = 0; i < xiaojie_split_anchored[index].GetLength(0);i++)Console.WriteLine(xiaojie_split_anchored[index][i]);//哪些拍子是被标记的
+            for (int i = 0; i < xiaojie_split_anchored[index].GetLength(0);i++)
+            {
+                Console.WriteLine(xiaojie_split_anchored[index][i]);//哪些拍子是被标记的
+            }
 
-            for(int i = 0; i < p1.Length; i++)
+            for (int i = 0; i < p1.Length; i++)
             {
                 if (p1[i].Split('|')[0].Split(',').Length > saigaohe) saigaohe = p1[i].Split('|')[0].Split(',').Length;
             }//检测最多一个和弦有几个音
 
-            music[index]=new int[p1.Length,saigaohe+1];
+            music_zan[index]=new int[p1.Length,saigaohe+1];
             string[] zan2;
             stop[index] = new bool[p1.Length];
             string out_="";
@@ -376,8 +373,9 @@ namespace sanciyuandehundan_API
                 }//连音线
 
                 zan1 = p1[i].Split(',');
-                music[index][i, saigaohe-1] = int.Parse(zan1[1][0].ToString());//取出音符
-                xiaojie_paizi_now += (1.0F/music[index][i, saigaohe - 1])/note_base[index];//记录现在到这小节的第几拍了
+                music_zan[index][i, saigaohe] = int.Parse(zan1[1].Replace(".",""));//取出音符
+                Console.Write("音长"+music_zan[index][i,saigaohe]+" ");
+                xiaojie_paizi_now += (1.0F/music_zan[index][i, saigaohe ])/note_base[index];//记录现在到这小节的第几拍了
                 if (xiaojie_paizi_now >= xiaojie[index]) xiaojie_paizi_now -= xiaojie[index];//每过一个小节重置拍子进度
                 bool a=false;//是否是强拍
                 for(int u = 0; u < xiaojie_split[index]; u++)
@@ -409,12 +407,13 @@ namespace sanciyuandehundan_API
                 }//如果没被标记为强拍则为弱拍
                 //节奏，拍的强弱
 
+                music_zan[index][i, saigaohe] = (int)(note_long[index] * ((1.0F / music_zan[index][i, saigaohe]) / note_base[index]));//计算该音符长度
+                time[index] += music_zan[index][i, saigaohe]- note_long[index] / 10;//计算此乐曲时间
                 for (int k = 1; k < zan1[1].Length; k++)
                 {
-                    music[index][i, saigaohe-1] += music[index][i, saigaohe-1] / (2 * k);
+                    if (zan1[1][k] == '.') music_zan[index][i, saigaohe] += music_zan[index][i, saigaohe] / (2 * k);
                 }//附点音符
-                music[index][i, saigaohe] = (int)(note_long[index] * ((1.0F / music[index][i, saigaohe - 1]) / note_base[index]));//计算该音符长度
-                time[index] += music[index][i, saigaohe]- note_long[index] / 10;//计算此乐曲时间
+                Console.Write(music_zan[index][i, saigaohe] + " ");
 
                 zan2 = zan1[0].Split('/');// -1/+1/1
                 for(int o=0; o < zan2.Length; o++)// -1 +1 1
@@ -425,65 +424,144 @@ namespace sanciyuandehundan_API
                         else if (s == '-') high_--;
                         else note = s - '0';
                     }
-                    music[index][i,o]= 59 + note + (12 * high_) + diaoshi;//获取该音符midi代码
-                    music[index][i,o]= power[index][i] << 16 | music[index][i,o] << 8 | 0x90 + index;//转换为midi输入格式
-                    out_+= music[index][i, o].ToString() + ',';
+                    music_zan[index][i, o] = 59 + note + (12 * high_);//获取该音符midi代码
+                    music_zan[index][i,o]= power[index][i] << 16 | music_zan[index][i,o] << 8 | 0x90 + index;//转换为midi输入格式
+                    out_+= music_zan[index][i, o].ToString() + ',';
                 }//音阶
 
-                out_ += music[index][i, saigaohe];
+                out_ += music_zan[index][i, saigaohe];
                 Console.WriteLine(out_);
                 out_ = "";
-            }
+
+            }//暂存乐谱
+
             Console.WriteLine("time:" + time[index].ToString());
-            /*for (int i=0; i<p1.Length; i++)
+            music[index]=new int[music_zan[index].GetLength(0) - stop_number[index],saigaohe+2];//设定暂存1乐谱,相比原暂存乐谱增加了音符间间隔时长的设置
+            Console.WriteLine("music:"+music[index].GetLength(0).ToString()+','+music[index].GetLength(1).ToString());
+            Console.WriteLine("music_zan:" + music_zan[index].GetLength(0).ToString() + ',' + music_zan[index].GetLength(1).ToString());
+
+            for(int i = 0; i < music_zan[index].GetLength(0); i++)
             {
-                stop[index][i] = true;
-
-                zan = p1[i].Split(',');
-                p[i] = zan[0];//音阶
-                l[i] = zan[1];//音符
-                high_ = 0;
-                //Console.WriteLine(p[i]+" "+l[i]);
-
-                if (p[i].Contains("/"))
+                Console.Write('|');
+                for (int j = 0; j < music_zan[index].GetLength(1); j++)
                 {
-                    string[] zan_h= p[i].Split('/');
-                    p[i]= zan_h[0];
-                    p_h[i,0]= zan_h[1];
-                    if (zan_h.Length > 2) p_h[i, 1] = zan_h[2];
-
-                    //music_he[index][i,0]=p[i].Split('/')[0];
+                    Console.Write(music_zan[index][i, j].ToString() + '|');
                 }
+                Console.WriteLine();
+            }//监控
 
-                for (int k = 0; k < p[i].Length; k++)
+            int b = 0;//遇到了几次连音线
+            int xiangtong = 0;
+            for (int i = 0; i < music_zan[index].GetLength(0); i++)//清除连音线造成的空格
+            {
+                if (music_zan[index][i, 0] == 0)//如果这里是连音线的位置
                 {
-                    if (p[i][k] == '-')
+                    if (music_zan[index][i - 1, 0] == music_zan[index][i + 1, 0])//被连音线链接双方音阶是否相同
                     {
-                        high_--;
-                    }
-                    else if (p[i][k]=='+')
-                    {
-                        high_++;
+                        for (int j = 0; j < music_zan[index].GetLength(1); j++)//跳过这格连音线和被连音线链接的后方的相同音符
+                        {
+                            music[index][i - b, j] = music_zan[index][i + 2, j];
+                        }
+                        music[index][i - b - 1, saigaohe] += music_zan[index][i + 2, saigaohe];
+                        xiangtong++;
+                        i++;
+                        b++;
                     }
                     else
                     {
-                        note = int.Parse(p[i][k].ToString());
+                        for (int j = 0; j < music_zan[index].GetLength(1); j++)//跳过这格
+                        {
+                            music[index][i - b, j] = music_zan[index][i + 1, j];
+                        }
                     }
-                }//计算单个音符的音高
-                sheets[index][i, 0] = 59 + note + (12 * high_) + diaoshi;
-
-                sheets[index][i, 1] = (int)(note_long[index] * ((1.0F / (l[i][0] - '0')) / note_base[index]));//音符基本长度
-                for (int k=1; k < l[i].Length;k++)
+                    b++;
+                    i++;
+                }
+                else
                 {
-                    sheets[index][i, 1] += sheets[index][i, 1] / 2*k;
-                }//附点音符
+                    for (int j = 0; j < music_zan[index].GetLength(1); j++)
+                    {
+                        music[index][i - b, j] = music_zan[index][i, j];
+                    }
+                }
+            }//暂存乐谱简化
 
-                music[index][i, 0] = power[index] << 16 | sheets[index][i, 0] << 8 | 0x90 + index;
-                music[index][i, 4] = sheets[index][i, 1];
-                Console.WriteLine(music[index][i, 0].ToString() + '/' + music[index][i,1].ToString());
-            }//将每个音符分别存储*/
+            Console.WriteLine("——————————————");//优雅的分隔线
 
+            for(int i = 0; i < music[index].GetLength(0); i++)
+            {
+                music[index][i, saigaohe + 1] = music[index][i, saigaohe]/9;//按下间隔
+                Console.Write('|');
+                for (int j = 0; j < music[index].GetLength(1); j++)
+                {
+                    Console.Write(music[index][i, j].ToString() + '|');
+                }
+                Console.WriteLine();
+            }//监控
+
+            Console.WriteLine("——————————————");//优雅的分隔线
+
+            me[index]=new int[music[index].GetLength(0)-xiangtong,saigaohe+2];//最终乐谱初始化
+            for (int i = 0; i < me[index].GetLength(0); i++)
+            {
+                Console.Write('|');
+                for (int j = 0; j < music[index].GetLength(1); j++)
+                {
+                    me[index][i, j] = music[index][i, j];
+                    Console.Write(me[index][i, j].ToString() + '|');
+                }
+                Console.WriteLine();
+            }//最终乐谱
+            note_number[index] = saigaohe;
         }
+
+        /*for (int i=0; i<p1.Length; i++)
+{
+    stop[index][i] = true;
+
+    zan = p1[i].Split(',');
+    p[i] = zan[0];//音阶
+    l[i] = zan[1];//音符
+    high_ = 0;
+    //Console.WriteLine(p[i]+" "+l[i]);
+
+    if (p[i].Contains("/"))
+    {
+        string[] zan_h= p[i].Split('/');
+        p[i]= zan_h[0];
+        p_h[i,0]= zan_h[1];
+        if (zan_h.Length > 2) p_h[i, 1] = zan_h[2];
+
+        //music_he[index][i,0]=p[i].Split('/')[0];
+    }
+
+    for (int k = 0; k < p[i].Length; k++)
+    {
+        if (p[i][k] == '-')
+        {
+            high_--;
+        }
+        else if (p[i][k]=='+')
+        {
+            high_++;
+        }
+        else
+        {
+            note = int.Parse(p[i][k].ToString());
+        }
+    }//计算单个音符的音高
+    sheets[index][i, 0] = 59 + note + (12 * high_) + diaoshi;
+
+    sheets[index][i, 1] = (int)(note_long[index] * ((1.0F / (l[i][0] - '0')) / note_base[index]));//音符基本长度
+    for (int k=1; k < l[i].Length;k++)
+    {
+        sheets[index][i, 1] += sheets[index][i, 1] / 2*k;
+    }//附点音符
+
+    music[index][i, 0] = power[index] << 16 | sheets[index][i, 0] << 8 | 0x90 + index;
+    music[index][i, 4] = sheets[index][i, 1];
+    Console.WriteLine(music[index][i, 0].ToString() + '/' + music[index][i,1].ToString());
+}//将每个音符分别存储*/
 
         public int[,] p = new int[10, 2]
         {
