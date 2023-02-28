@@ -93,6 +93,7 @@ namespace sanciyuandehundan_API
             }
         }//计算屏幕比例
     }
+
     public class Midi
     {
         public int[] xiaojie=new int[16];//一小节几拍
@@ -111,6 +112,7 @@ namespace sanciyuandehundan_API
         public int[] time =new int[16];//曲子时长几毫秒
         public int[] stop_number=new int[16];//几个连音线
         public int[] note_number = new int[16];//乐谱的和弦最多有几个音符
+        public int[] diaoshi = new int[16];
 
         /// <summary>
         /// 音符midi码
@@ -127,6 +129,7 @@ namespace sanciyuandehundan_API
             A1 = 33, G1s = 32, G1 = 31, F1s = 30, F1 = 29, E1 = 28, D1s = 27, D1 = 26, C1s = 25, C1 = 24, B0 = 23,
             A0s = 22, A0 = 21
         }
+
         /// <summary>
         /// 乐器表
         /// </summary>
@@ -264,13 +267,13 @@ namespace sanciyuandehundan_API
         }
 
         /// <summary>
-        /// 设置调式
+        /// 设置音高变化，此音轨中输入的1相较于中央C高（正）或低（负数）了多少
         /// </summary>
         /// <param name="diaoshi"></param>
         /// <param name="index"></param>
-        public void Music_diaoshi(int diaoshi,int index)
+        public void Music_diaoshi(int diaoshi_,int index)
         {
-
+            diaoshi[index] = diaoshi_;
         }
 
         /// <summary>
@@ -279,11 +282,25 @@ namespace sanciyuandehundan_API
         /// <param name="music">
         /// 谱子
         /// </param>
-        public void Music_play(int[,] music,int index)//
+        public void Music_play(int[,] music,int index)//利用midioutlongmsg,或者shortmsg
         {
             
         }
-
+        /*
+            for(int i = 0; i < me[index].GetLength(0); i++)
+            {
+                for(int j = 0; j < note_number[index]; j++)
+                {
+                    midiOutShortMsg(midiOut, me[index][i, j]);
+                }
+                Thread.Sleep(me[index][i, note_number[index]]);
+                for (int j = 0; j < note_number[index]; j++)
+                {
+                    midiOutShortMsg(midiOut, me[index][i, j]-0x10);
+                }
+                Thread.Sleep(me[index][i, note_number[index]+1]);
+            }
+        *///效率还是太低
         /*
             Console.WriteLine(System.DateTime.Now);
             
@@ -334,7 +351,7 @@ namespace sanciyuandehundan_API
         /// <param name="p0"></param>
         /// <param name="index"></param>
         /// <param name="diaoshi"></param>
-        public void Music_parse(string p0,int index,int diaoshi)
+        public unsafe void Music_parse(string p0,int index)
         {
             string[] p1 = p0.Split('|');
             string[] zan1;
@@ -344,6 +361,7 @@ namespace sanciyuandehundan_API
             time[index] = 0;
             float xiaojie_paizi_now=0;//现在在第几拍
             stop_number[index] = 0;
+            bool[] v;//标记是否是被连音线连接的不同音阶的音符 
 
             for (int i = 0; i < xiaojie_split_anchored[index].GetLength(0);i++)
             {
@@ -387,7 +405,7 @@ namespace sanciyuandehundan_API
                         Console.Write((int)(xiaojie_split_anchored[index][u]) + " ");
                         if (u == 0)//如果是小节的第一拍则为强拍
                         {
-                            power[index][i] = (int)(power_base[index] * 1.1);
+                            power[index][i] = (int)(power_base[index] * 1.1);//kk
                             Console.Write("1 ");
                         }
                         else//不是则为次强拍
@@ -424,7 +442,7 @@ namespace sanciyuandehundan_API
                         else if (s == '-') high_--;
                         else note = s - '0';
                     }
-                    music_zan[index][i, o] = 59 + note + (12 * high_);//获取该音符midi代码
+                    music_zan[index][i, o] = 59 + note + (12 * high_)+diaoshi[index];//获取该音符midi代码
                     music_zan[index][i,o]= power[index][i] << 16 | music_zan[index][i,o] << 8 | 0x90 + index;//转换为midi输入格式
                     out_+= music_zan[index][i, o].ToString() + ',';
                 }//音阶
@@ -437,6 +455,7 @@ namespace sanciyuandehundan_API
 
             Console.WriteLine("time:" + time[index].ToString());
             music[index]=new int[music_zan[index].GetLength(0) - stop_number[index],saigaohe+2];//设定暂存1乐谱,相比原暂存乐谱增加了音符间间隔时长的设置
+            v = new bool[music[index].GetLength(0)];
             Console.WriteLine("music:"+music[index].GetLength(0).ToString()+','+music[index].GetLength(1).ToString());
             Console.WriteLine("music_zan:" + music_zan[index].GetLength(0).ToString() + ',' + music_zan[index].GetLength(1).ToString());
 
@@ -456,7 +475,7 @@ namespace sanciyuandehundan_API
             {
                 if (music_zan[index][i, 0] == 0)//如果这里是连音线的位置
                 {
-                    if (music_zan[index][i - 1, 0] == music_zan[index][i + 1, 0])//被连音线链接双方音阶是否相同
+                    if (music_zan[index][i - 1, 0] == music_zan[index][i + 1, 0])//被连音线链接双方音阶是否相同，相同
                     {
                         for (int j = 0; j < music_zan[index].GetLength(1); j++)//跳过这格连音线和被连音线链接的后方的相同音符
                         {
@@ -467,12 +486,13 @@ namespace sanciyuandehundan_API
                         i++;
                         b++;
                     }
-                    else
+                    else//不同
                     {
                         for (int j = 0; j < music_zan[index].GetLength(1); j++)//跳过这格
                         {
                             music[index][i - b, j] = music_zan[index][i + 1, j];
                         }
+                        v[i - b-1] = true;
                     }
                     b++;
                     i++;
@@ -484,13 +504,13 @@ namespace sanciyuandehundan_API
                         music[index][i - b, j] = music_zan[index][i, j];
                     }
                 }
-            }//暂存乐谱简化
+            }//暂存乐谱简化，连音线，两个音符不同时的情况未写
 
             Console.WriteLine("——————————————");//优雅的分隔线
 
             for(int i = 0; i < music[index].GetLength(0); i++)
             {
-                music[index][i, saigaohe + 1] = music[index][i, saigaohe]/9;//按下间隔
+                if (!v[i]) music[index][i, saigaohe + 1] = music[index][i, saigaohe] / 9;//按下间隔
                 Console.Write('|');
                 for (int j = 0; j < music[index].GetLength(1); j++)
                 {
@@ -513,6 +533,7 @@ namespace sanciyuandehundan_API
                 Console.WriteLine();
             }//最终乐谱
             note_number[index] = saigaohe;
+
         }
 
         /*for (int i=0; i<p1.Length; i++)
