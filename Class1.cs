@@ -108,6 +108,7 @@ namespace sanciyuandehundan_API
         public int[][,] music_zan = new int[16][,];//暂存乐谱
         public int[][,] music = new int[16][,];//暂存乐谱1
         public int[][,] me = new int[16][,];//最终乐谱
+        public int[][] sanhun = new int[16][];
         public bool[][] stop = new bool[16][];//和下一个音符间是否有连音线
         public int[] time =new int[16];//曲子时长几毫秒
         public int[] stop_number=new int[16];//几个连音线
@@ -534,6 +535,36 @@ namespace sanciyuandehundan_API
             }//最终乐谱
             note_number[index] = saigaohe;
 
+            sanhun[index] = new int[me[index].GetLength(0)*(2*saigaohe+2)];
+            int san_index=0;
+            for (int i = 0; i < me[index].GetLength(0); i++)
+            {
+                for (int j = 0;j <saigaohe; j++)
+                {
+                    if (me[index][i, j] != 0)
+                    {
+                        sanhun[index][san_index] = me[index][i, j];
+                        Console.WriteLine("按下:" + sanhun[index][san_index]);
+                        san_index++;//下一个要在哪个索引
+                    }
+                }//按下
+                sanhun[index][san_index] = me[index][i,saigaohe];//按住
+                Console.WriteLine("按住:" + sanhun[index][san_index]);
+                san_index++;
+                for(int j = 0;j<saigaohe; j++)
+                {
+                    if (me[index][i, j] != 0)
+                    {
+                        sanhun[index][san_index] = me[index][i, j] - 0x10;
+                        Console.WriteLine("松开:" + sanhun[index][san_index]);
+                        san_index++;
+                    }
+                }//松开
+                sanhun[index][san_index] = me[index][i, saigaohe + 1];//停顿
+                Console.WriteLine("停顿:" + sanhun[index][san_index]);
+                san_index++;
+            }
+            
         }
 
         /*for (int i=0; i<p1.Length; i++)
