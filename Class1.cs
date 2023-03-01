@@ -563,7 +563,7 @@ namespace sanciyuandehundan_API
                 sanhun[index][san_index] = me[index][i, saigaohe + 1];//停顿
                 Console.WriteLine("停顿:" + sanhun[index][san_index]);
                 san_index++;
-            }
+            }//化为命令
             
         }
 
