@@ -185,6 +185,7 @@ namespace sanciyuandehundan_API
         [DllImport("sanciyuandehundan_API_Cpp.dll", EntryPoint = "midi_play", CallingConvention = CallingConvention.Cdecl)]
         public static extern int midi_play(int[] yuepu,int midiout);
 
+
         /// <summary>
         /// midi设备的句柄
         /// </summary>
@@ -568,7 +569,11 @@ namespace sanciyuandehundan_API
             }//化为命令
 
             //midiOutShortMsg(midiOut, 0x4f << 16 | 0x40 << 8 | 0x90);
-            midi_play(me[index], midiOut);
+            //midi_play(me[index], midiOut);
+
+
+
+
             Console.WriteLine("a");
         }
 
