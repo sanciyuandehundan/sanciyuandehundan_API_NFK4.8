@@ -16,6 +16,7 @@ using System.Security.Policy;
 using System.Drawing;
 using System.Windows.Forms;
 
+
 namespace sanciyuandehundan_API
 {
     public class picture
@@ -108,8 +109,8 @@ namespace sanciyuandehundan_API
         public int[] instrument = new int[16];//乐器
         public int[][,] music_zan_0 = new int[16][,];//暂存乐谱
         public int[][,] music_zan_1 = new int[16][,];//暂存乐谱1
-        public int[][,] music_zan_2 = new int[16][,];//最终乐谱
-        public int[][] me = new int[16][];
+        public int[][,] music_zan_2 = new int[16][,];//暂存乐谱2
+        public int[][] music_zan_3 = new int[16][];//暂存乐谱3
         public bool[][] stop = new bool[16][];//和下一个音符间是否有连音线
         public int[] time =new int[16];//曲子时长几毫秒
         public int[] stop_number=new int[16];//几个连音线
@@ -183,7 +184,7 @@ namespace sanciyuandehundan_API
 
 
         [DllImport("sanciyuandehundan_API_Cpp.dll", EntryPoint = "midi_play", CallingConvention = CallingConvention.Cdecl)]
-        public static extern int midi_play(int[] yuepu,int midiout);
+        public static extern void midi_play(int[] yuepu,int midiout);
 
 
         /// <summary>
@@ -525,7 +526,7 @@ namespace sanciyuandehundan_API
 
             Console.WriteLine("——————————————");//优雅的分隔线
 
-            music_zan_2[index]=new int[music_zan_1[index].GetLength(0)-xiangtong,saigaohe+2];//最终乐谱初始化
+            music_zan_2[index]=new int[music_zan_1[index].GetLength(0)-xiangtong,saigaohe+2];//暂存乐谱2初始化
             for (int i = 0; i < music_zan_2[index].GetLength(0); i++)
             {
                 Console.Write('|');
@@ -535,10 +536,11 @@ namespace sanciyuandehundan_API
                     Console.Write(music_zan_2[index][i, j].ToString() + '|');
                 }
                 Console.WriteLine();
-            }//最终乐谱
+            }//暂存乐谱2
             note_number[index] = saigaohe;
 
-            me[index] = new int[music_zan_2[index].GetLength(0)*(2*saigaohe+2)];
+            music_zan_3[index] = new int[music_zan_2[index].GetLength(0)*(2*saigaohe+2)];
+            string[] biaoji=new string[music_zan_3[index].Length];//标记这是什么命令
             int san_index=0;
             for (int i = 0; i < music_zan_2[index].GetLength(0); i++)
             {
@@ -546,36 +548,50 @@ namespace sanciyuandehundan_API
                 {
                     if (music_zan_2[index][i, j] != 0)
                     {
-                        me[index][san_index] = music_zan_2[index][i, j];
-                        Console.WriteLine("按下:" + me[index][san_index]);
+                        music_zan_3[index][san_index] = music_zan_2[index][i, j];
+                        biaoji[san_index] = "down";
+                        Console.WriteLine("按下:" + music_zan_3[index][san_index]);
                         san_index++;//下一个要在哪个索引
                     }
                 }//按下
-                me[index][san_index] = music_zan_2[index][i,saigaohe];//按住
-                Console.WriteLine("按住:" + me[index][san_index]);
+                music_zan_3[index][san_index] = music_zan_2[index][i,saigaohe];//按住
+                biaoji[san_index] = "keep";
+                Console.WriteLine("按住:" + music_zan_3[index][san_index]);
                 san_index++;
                 for(int j = 0;j<saigaohe; j++)
                 {
                     if (music_zan_2[index][i, j] != 0)
                     {
-                        me[index][san_index] = music_zan_2[index][i, j] - 0x10;
-                        Console.WriteLine("松开:" + me[index][san_index]);
+                        music_zan_3[index][san_index] = music_zan_2[index][i, j] - 0x10;
+                        biaoji[san_index] = "up";
+                        Console.WriteLine("松开:" + music_zan_3[index][san_index]);
                         san_index++;
                     }
                 }//松开
-                me[index][san_index] = music_zan_2[index][i, saigaohe + 1];//停顿
-                Console.WriteLine("停顿:" + me[index][san_index]);
+                music_zan_3[index][san_index] = music_zan_2[index][i, saigaohe + 1];//停顿
+                biaoji[san_index] = "keep";
+                Console.WriteLine("停顿:" + music_zan_3[index][san_index]);
                 san_index++;
             }//化为命令
 
+            for(int i = 0; i < music_zan_3[index].Length;i++)
+            {
+                switch (biaoji[i])
+                {
+                    case "keep":
+                        break;
+                    case "down":
+                        break;
+                    case "up":
+                        break;
+                }
+            }//化为mid格式的音轨
+
             //midiOutShortMsg(midiOut, 0x4f << 16 | 0x40 << 8 | 0x90);
             //midi_play(me[index], midiOut);
-
-
-
-
-            Console.WriteLine("a");
+            //Console.WriteLine("a");
         }
+  
 
         /*for (int i=0; i<p1.Length; i++)
 {
