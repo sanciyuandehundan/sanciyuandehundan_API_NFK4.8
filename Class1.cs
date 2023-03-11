@@ -107,15 +107,18 @@ namespace sanciyuandehundan_API
         public float[] note_base = new float[16];//一拍是几分音符
         public int[] note_long = new int[16];//一拍几毫秒
         public int[] instrument = new int[16];//乐器
-        public int[][,] music_zan_0 = new int[16][,];//暂存乐谱
+        public int[][,] music_zan_0 = new int[16][,];//暂存乐谱0
         public int[][,] music_zan_1 = new int[16][,];//暂存乐谱1
         public int[][,] music_zan_2 = new int[16][,];//暂存乐谱2
         public int[][] music_zan_3 = new int[16][];//暂存乐谱3
+        public byte[][] music_zan_4 = new byte[16][];//暂存乐谱4
         public bool[][] stop = new bool[16][];//和下一个音符间是否有连音线
         public int[] time =new int[16];//曲子时长几毫秒
         public int[] stop_number=new int[16];//几个连音线
         public int[] note_number = new int[16];//乐谱的和弦最多有几个音符
         public int[] diaoshi = new int[16];
+        System.IO.BinaryWriter writer;
+        System.IO.BinaryReader reader;
 
         /// <summary>
         /// 音符midi码
@@ -198,6 +201,7 @@ namespace sanciyuandehundan_API
             {
                 MessageBox.Show("無法打開MIDI設備");
             }
+            //midiOutShortMsg(midiOut, 0x7e << 16 | 60 << 8 | 0x90);
         }
         ~Midi()
         {
@@ -573,7 +577,7 @@ namespace sanciyuandehundan_API
                 Console.WriteLine("停顿:" + music_zan_3[index][san_index]);
                 san_index++;
             }//化为命令
-
+            music_zan_4[index]=new byte[music_zan_3[index].Length*3];
             for(int i = 0; i < music_zan_3[index].Length;i++)
             {
                 switch (biaoji[i])
@@ -586,6 +590,9 @@ namespace sanciyuandehundan_API
                         break;
                 }
             }//化为mid格式的音轨
+
+            //writer.Write(music_zan_4[index]);
+
 
             //midiOutShortMsg(midiOut, 0x4f << 16 | 0x40 << 8 | 0x90);
             //midi_play(me[index], midiOut);
