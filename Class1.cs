@@ -117,7 +117,8 @@ namespace sanciyuandehundan_API
         public int[] stop_number=new int[16];//几个连音线
         public int[] note_number = new int[16];//乐谱的和弦最多有几个音符
         public int[] diaoshi = new int[16];
-        System.IO.BinaryWriter writer;
+        System.IO.BinaryWriter writer1;//保存单音轨的mid文件，可播放
+        System.IO.BinaryWriter writer2;//仅保存音轨数据，不可直接播放
         System.IO.BinaryReader reader;
 
         /// <summary>
@@ -212,7 +213,7 @@ namespace sanciyuandehundan_API
         }
 
         /// <summary>
-        /// 计算一拍子几秒
+        /// 计算一拍子几tick
         /// </summary>
         /// <param name="pinlv">
         /// 一分钟几拍
@@ -220,7 +221,7 @@ namespace sanciyuandehundan_API
         public void Music_speed(int pinlv,int index)
         {
             tempo_minute[index] = pinlv;
-            note_long[index] = 60000 / pinlv;
+            note_long[index] = 57600 / pinlv;
         }
 
         /// <summary>
@@ -253,7 +254,7 @@ namespace sanciyuandehundan_API
         }
 
         /// <summary>
-        /// 音量，最高255
+        /// 音量，最高0x7e
         /// </summary>
         /// <param name="power_"></param>
         /// <param name="index"></param>
@@ -299,6 +300,7 @@ namespace sanciyuandehundan_API
                 for (int j = 0; j < note_number[index]; j++)
                 {
                     midiOutShortMsg(midiOut, music_zan_2[index][i, j]);
+                    Console.WriteLine("play: " + music_zan_2[index][i,j]);
                 }
                 Thread.Sleep(music_zan_2[index][i, note_number[index]]);
                 for (int j = 0; j < note_number[index]; j++)
@@ -414,7 +416,7 @@ namespace sanciyuandehundan_API
                         Console.Write((int)(xiaojie_split_anchored[index][u]) + " ");
                         if (u == 0)//如果是小节的第一拍则为强拍
                         {
-                            power[index][i] = (int)(power_base[index] * 1.1);//kk
+                            power[index][i] = (int)(power_base[index] * 1.2);//kk
                             Console.Write("1 ");
                         }
                         else//不是则为次强拍
@@ -427,7 +429,7 @@ namespace sanciyuandehundan_API
                 }
                 if (!a)
                 {
-                    power[index][i] = (int)(power_base[index] * 0.9);
+                    power[index][i] = (int)(power_base[index] * 0.8);
                     Console.Write(xiaojie_paizi_now - 1 + " ");
                     Console.Write((int)(xiaojie_split_anchored[index] [xiaojie_split_anchored[index].GetLength(0)-1] ) + " ");
                     Console.Write("-1 ");
@@ -447,8 +449,8 @@ namespace sanciyuandehundan_API
                 {
                     foreach(char s in zan2[o])// -1
                     {
-                        if (s == '+') high_++;
-                        else if (s == '-') high_--;
+                        if (s == '+') high_+=1;
+                        else if (s == '-') high_-=1;
                         else note = s - '0';
                     }
                     music_zan_0[index][i, o] = 59 + note + (12 * high_)+diaoshi[index];//获取该音符midi代码
@@ -513,13 +515,13 @@ namespace sanciyuandehundan_API
                         music_zan_1[index][i - b, j] = music_zan_0[index][i, j];
                     }
                 }
-            }//暂存乐谱简化，连音线，两个音符不同时的情况未写
+            }//暂存乐谱简化，连音线，两个音符不同时的情况
 
             Console.WriteLine("——————————————");//优雅的分隔线
 
             for(int i = 0; i < music_zan_1[index].GetLength(0); i++)
             {
-                if (!v[i]) music_zan_1[index][i, saigaohe + 1] = music_zan_1[index][i, saigaohe] / 9;//按下间隔
+                if (!v[i]) music_zan_1[index][i, saigaohe + 1] = music_zan_1[index][i, saigaohe] / 10;//按下间隔
                 Console.Write('|');
                 for (int j = 0; j < music_zan_1[index].GetLength(1); j++)
                 {
@@ -546,6 +548,7 @@ namespace sanciyuandehundan_API
             music_zan_3[index] = new int[music_zan_2[index].GetLength(0)*(2*saigaohe+2)];
             string[] biaoji=new string[music_zan_3[index].Length];//标记这是什么命令
             int san_index=0;
+            int s3;
             for (int i = 0; i < music_zan_2[index].GetLength(0); i++)
             {
                 for (int j = 0;j <saigaohe; j++)
@@ -558,7 +561,8 @@ namespace sanciyuandehundan_API
                         san_index++;//下一个要在哪个索引
                     }
                 }//按下
-                music_zan_3[index][san_index] = music_zan_2[index][i,saigaohe];//按住
+                s3 = music_zan_2[index][i, saigaohe];//按住暂存
+                music_zan_3[index][san_index] = music_zan_2[index][i,saigaohe]-s3/10;//按住
                 biaoji[san_index] = "keep";
                 Console.WriteLine("按住:" + music_zan_3[index][san_index]);
                 san_index++;
@@ -577,29 +581,123 @@ namespace sanciyuandehundan_API
                 Console.WriteLine("停顿:" + music_zan_3[index][san_index]);
                 san_index++;
             }//化为命令
-            music_zan_4[index]=new byte[music_zan_3[index].Length*3];
-            for(int i = 0; i < music_zan_3[index].Length;i++)
+
+            writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流
+            writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流
+            writer1.Write(yingui_start_file);//写入文件定义
+            writer1.Write(yingui_one);//写入文件定义,文件类型
+            writer1.Write((byte)0); //音轨数量
+            writer1.Write((byte)2);//写入文件定义，音轨数量，顺序有问题
+            //writer1.Write((short)note_long[index]);//写入文件定义，四分音符长度,有问题,反了
+            writer1.Write((byte)(note_long[index] >> 8));//如果大于7位
+            writer1.Write((byte)note_long[index]);
+            //该文件信息
+
+            writer1.Write(yingui_start);//写入音轨头
+            writer1.Write((short)0); //音轨长度
+            writer1.Write((byte)0); //音轨长度
+            writer1.Write((byte)0x12);//写入音轨长度，顺序有问题
+            writer1.Write((byte)0x00);//分隔
+            writer1.Write(yingui_diaohao);//调号头
+            writer1.Write((byte)diaoshi[index]);//调号
+            writer1.Write((byte)0x00);//调号
+            writer1.Write((byte)0x00);//分隔
+            writer1.Write(yingui_jiepai);//节拍头
+            writer1.Write((byte)xiaojie[index]);//一小节几拍
+            writer1.Write((byte)(1/note_base[index]));//一拍是几分音符
+            writer1.Write((byte)0x18);//节拍器时钟
+            writer1.Write((byte)0x08);//一四分音符几个32分音符
+            writer1.Write((byte)0x00);//分隔
+            //writer1.Write(yingui_speed);//写入速度头
+            //writer1.Write((byte)0x00);//分隔
+            writer1.Write(yingui_end);//写入音轨尾
+            //全局音轨
+
+            writer2.Write(yingui_start);//写入音轨头
+            writer2.Write((byte)0x00);//预留音轨长度空位
+            writer2.Write((byte)0x00);//预留音轨长度空位
+            writer2.Write((byte)0x00);//预留音轨长度空位
+            writer2.Write((byte)0x00);//预留音轨长度空位
+            writer2.Write((byte)0x00);//分隔
+            writer2.Write((byte)(0xc0+index));//乐器
+            writer2.Write((byte)instrument[index]);//乐器
+            writer2.Write((byte)0x00);//分隔
+            //该音轨信息
+
+            for (int i = 0; i < music_zan_3[index].Length;i++)
             {
                 switch (biaoji[i])
                 {
-                    case "keep":
+                    case "keep"://最多三位元组
+                        if (music_zan_3[index][i] > 16383)
+                        {
+                            writer2.Write((byte)((1 << 7) + (music_zan_3[index][i] >> 14)));//如果大于14位
+                        }
+                        if (music_zan_3[index][i]>127)
+                        {
+                            writer2.Write((byte)((1 << 7) + (music_zan_3[index][i]>>7)));//如果大于7位
+                        }
+                        byte z = (byte)music_zan_3[index][i];
+                        writer2.Write((byte)((byte)(z<<1)>>1));
                         break;
                     case "down":
+                        writer2.Write((byte)music_zan_3[index][i]);//模式与通道
+                        writer2.Write((byte)(music_zan_3[index][i]>>8));//音高
+                        writer2.Write((byte)(music_zan_3[index][i]>>16));//力度
                         break;
                     case "up":
+                        writer2.Write((byte)music_zan_3[index][i]);//模式与通道
+                        writer2.Write((byte)(music_zan_3[index][i] >> 8));//音高
+                        writer2.Write((byte)0x00);//力度
                         break;
                 }
             }//化为mid格式的音轨
+            writer2.Seek(-1, SeekOrigin.End);
+            if (note_long[index] > 16383)
+            {
+                writer2.Write((byte)((1 << 7) + (byte)(note_long[index] >> 14)));//如果大于14位
+            }
+            if (note_long[index] > 127)
+            {
+                writer2.Write((byte)((1 << 7) + (note_long[index] >> 7)));//如果大于7位
+            }
+            byte d = (byte)note_long[index];
+            writer2.Write((byte)((byte)(d << 1) >> 1));//间隔
+
+            writer2.Write(yingui_end);//写入音轨尾
+            if (writer2.BaseStream.Length > 65535)
+            {
+                writer2.Seek(5, SeekOrigin.Begin);//到之前预留的空位
+                writer2.Write((byte)(writer2.BaseStream.Length >> 16));
+            }
+            if (writer2.BaseStream.Length > 255)
+            {
+                writer2.Seek(6, SeekOrigin.Begin);//到之前预留的空位
+                writer2.Write((byte)(writer2.BaseStream.Length >>8));
+            }
+            writer2.Seek(7, SeekOrigin.Begin);//到之前预留的空位
+            writer2.Write((byte)(writer2.BaseStream.Length-8));//写入音轨长度
+
+            writer2.Seek(0, SeekOrigin.Begin);//回到开头
+            writer2.BaseStream.CopyTo(writer1.BaseStream);//将音轨附加到文件
+            writer2.Close();
+
+            Console.WriteLine(Environment.CurrentDirectory + "\\yingui" + index.ToString() + ".mid");//音轨保存地址
+            writer1.Close();
 
             //writer.Write(music_zan_4[index]);
-
-
             //midiOutShortMsg(midiOut, 0x4f << 16 | 0x40 << 8 | 0x90);
             //midi_play(me[index], midiOut);
             //Console.WriteLine("a");
         }
-  
-
+        public byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
+        public byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
+        public byte[] yingui_one = { 0x00, 0x00 };//文件定义，种类,单音轨
+        public byte[] yingui_many = { 0x00, 0x01 };//文件定义，种类,多音轨
+        public byte[] yingui_end = { 0xff, 0x2f, 0x00 };//音轨尾
+        public byte[] yingui_diaohao = { 0xff, 0x59, 0x02 };//调号头
+        public byte[] yingui_jiepai = { 0xff, 0x58, 0x04 };//节拍头
+        public byte[] yingui_speed = { 0xff, 0x51, 0x03 };//速度头
         /*for (int i=0; i<p1.Length; i++)
 {
     stop[index][i] = true;
