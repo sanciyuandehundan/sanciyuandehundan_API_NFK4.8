@@ -16,6 +16,7 @@ using System.Security.Policy;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Net.NetworkInformation;
+using static sanciyuandehundan_API.Midi;
 
 
 namespace sanciyuandehundan_API
@@ -158,6 +159,7 @@ namespace sanciyuandehundan_API
                 power = new int[sheet.Split('|').Length];
                 power_base = power_;*/
                 this.index = index;
+                yuepu=sheet;
                 Music_speed(pinlv, this);
                 Music_note_base(note, xiaojie_, this);
                 Music_power(power_, sheet, this);
@@ -165,9 +167,56 @@ namespace sanciyuandehundan_API
                 Music_diaoshi(diaoshi, this);
                 Music_parse(this);
             }
+
+            public void Yingui_parse()
+            {
+                writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流
+                writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流
+
+                string[] zan1=yuepu.Split('|');
+                byte[] event_type=new byte[zan1.Length];//该事件类型：0音符，1连音线，2休止符
+
+                int saigaohe=0;
+                for(int i = 0; i < zan1.Length; i++)
+                {
+                    if (saigaohe < zan1[i].Split(',')[0].Split('/').Length)
+                    {
+                        saigaohe = zan1[i].Split(',')[0].Split('/').Length;
+                    }
+                }//检测一个和弦最多有几个音
+
+                string[,] zan2=new string[zan1.Length,saigaohe];
+
+
+                for(int i = 0; i < zan1.Length; i++)
+                {
+                    //判断该事件类型
+                    event_type[i] = 0;//普通音符
+                    if (zan2[i, 0].Equals("-"))event_type[i] = 1;//连音线
+                    if (zan2[i, 0].Equals("0"))event_type[i] = 2;//休止符
+
+                    if (event_type[i] == 0)
+                    {
+                        for (int j = 0; j < saigaohe; j++)
+                        {
+                            writer2.Write((byte)(0x90 + index));
+                            yingui.music_zan_0[i, o] = (note * 2) + (high_ * 12) + base_C - 2 + yingui.diaoshi;
+                            if (note * 2 + high_ > 6) yingui.music_zan_0[i, o] -= 1;//获取音阶代码，定义常量用const
+                            writer2.Write(zan2[i, j]);
+                        }
+                    }else if (event_type[i] == 1)
+                    {
+
+                    }else if (event_type[i] == 2)
+                    {
+
+                    }
+                }
+            }
         }
-        public const float power_chang_up=1.3F;
-        public const float power_chang_down=0.8F;
+        public const float power_chang_up=1.13F;
+        public const float power_chang_down=0.85F;
+        public const int base_C=60;
         /*public int[] xiaojie=new int[16];//一小节几拍
         public int[] xiaojie_split=new int[16];//一小节可以被分成几个三拍
         public int[][] xiaojie_split_anchored=new int[16][];//哪几拍是强的
@@ -191,42 +240,6 @@ namespace sanciyuandehundan_API
         //public System.IO.BinaryWriter writer1;//保存单音轨的mid文件，可播放
         //public System.IO.BinaryWriter writer2;//仅保存音轨数据，不可直接播放
         //public System.IO.BinaryReader reader;
-
-        /// <summary>
-        /// 音符midi码
-        /// </summary>
-        public enum Music_note_collection
-        {
-            Rest = 0, C8 = 108, B7 = 107, A7s = 106, A7 = 105, G7s = 104, G7 = 103, F7s = 102, F7 = 101, E7 = 100,
-            D7s = 99, D7 = 98, C7s = 97, C7 = 96, B6 = 95, A6s = 94, A6 = 93, G6s = 92, G6 = 91, F6s = 90, F6 = 89,
-            E6 = 88, D6s = 87, D6 = 86, C6s = 85, C6 = 84, B5 = 83, A5s = 82, A5 = 81, G5s = 80, G5 = 79, F5s = 78,
-            F5 = 77, E5 = 76, D5s = 75, D5 = 74, C5s = 73, C5 = 72, B4 = 71, A4s = 70, A4 = 69, G4s = 68, G4 = 67,
-            F4s = 66, F4 = 65, E4 = 64, D4s = 63, D4 = 62, C4s = 61, C4 = 60, B3 = 59, A3s = 58, A3 = 57, G3s = 56,
-            G3 = 55, F3s = 54, F3 = 53, E3 = 52, D3s = 51, D3 = 50, C3s = 49, C3 = 48, B2 = 47, A2s = 46, A2 = 45,
-            G2s = 44, G2 = 43, F2s = 42, F2 = 41, E2 = 40, D2s = 39, D2 = 38, C2s = 37, C2 = 36, B1 = 35, A1s = 34,
-            A1 = 33, G1s = 32, G1 = 31, F1s = 30, F1 = 29, E1 = 28, D1s = 27, D1 = 26, C1s = 25, C1 = 24, B0 = 23,
-            A0s = 22, A0 = 21
-        }
-
-        /// <summary>
-        /// 乐器表
-        /// </summary>
-        public enum Music_instrument_collection
-        {
-            AcousticGrandPiano = 1, BrightAcousticPiano = 2, ElectricGrand_Piano = 3, Honky_tonkPiano = 4, ElectricPiano_1 = 5, ElectricPiano_2 = 6, Harpsichord = 7,
-            Clavinet = 8, Celesta = 9, Glockenspiel = 10, Musicalbox = 11, Vibraphone = 12, Marimba = 13, Xylophone = 14, TubularBell = 15, Dulcimer = 16,
-            DrawbarOrgan = 17, PercussiveOrgan = 18, RockOrgan = 19, Churchorgan = 20, Reedorgan = 21, Accordion = 22, Harmonica = 23, TangoAccordion = 24, AcousticGuitar_nylon = 25,
-            AcousticGuitar_steel = 26, ElectricGuitar_jazz = 27, ElectricGuitar_clean = 28, ElectricGuitar_muted = 29, OverdrivenGuitar = 30, DistortionGuitar = 31, Guitarharmonics = 32,
-            AcousticBass = 33, ElectricBass_finger = 34, ElectricBass_pick = 35, FretlessBass = 36, SlapBass_1 = 37, SlapBass_2 = 38, SynthBass_1 = 39, SynthBass_2 = 40, Violin = 41, Viola = 42,
-            Cello = 43, Contrabass = 44, TremoloStrings = 45, PizzicatoStrings = 46, OrchestralHarp = 47, Timpani = 48, StringEnsemble_1 = 49, StringEnsemble_2 = 50, SynthStrings_1 = 51,
-            SynthStrings_2 = 52, Voice_Aahs = 53, Voice_Oohs = 54, SynthVoice = 55, OrchestraHit = 56, Trumpet = 57, Trombone = 58, Tuba = 59, MutedTrumpet = 60, Frenchhorn = 61, BrassSection = 62,
-            SynthBrass_1 = 63, SynthBrass_2 = 64, SopranoSax = 65, AltoSax = 66, TenorSax = 67, BaritoneSax = 68, Oboe = 69, EnglishHorn = 70, Bassoon = 71, Clarinet = 72, Piccolo = 73, Flute = 74,
-            Recorder = 75, PanFlute = 76, BlownBottle = 77, Shakuhachi = 78, Whistle = 79, Ocarina = 80, Lead_1_square = 81, Lead_2_sawtooth = 82, Lead_3_calliope = 83, Lead_4_chiff = 84,
-            Lead_5_charang = 85, Lead_6_voice = 86, Lead_7_fifths = 87, Lead_8_bass_lead = 88, Pad_1_newage = 89, Pad_2_warm = 90, Pad_3_polysynth = 91, Pad_4_choir = 92, Pad_5_bowed = 93,
-            Pad_6_metallic = 94, Pad_7_halo = 95, Pad_8_sweep = 96, FX_1_rain = 97, FX_2_soundtrack = 98, FX_3_crystal = 99, FX_4_atmosphere = 100, FX_5_brightness = 101, FX_6_goblins = 102,
-            FX_7_echoes = 103, FX_8_sci_fi = 104, Sitar = 105, Banjo = 106, Shamisen = 107, Koto = 108, Kalimba = 109, Bagpipe = 110, Fiddle = 111, Shanai = 112, TinkleBell = 113, Agogo = 114,
-            SteelDrums = 115, Woodblock = 116, TaikoDrum = 117, MelodicTom = 118, SynthDrum = 119, ReverseCymbal = 120
-        }
 
         /// <summary>
         /// 跟midi设备建立链接
@@ -524,9 +537,9 @@ namespace sanciyuandehundan_API
                         else note = s - '0';//将char转为int
                     }
 
-                    yingui.music_zan_0[i, o] = (note * 2) + (high_ * 12) + 58 + yingui.diaoshi;
+                    yingui.music_zan_0[i, o] = (note * 2) + (high_ * 12) + base_C-2 + yingui.diaoshi;
                     if (note * 2 + high_ > 6) yingui.music_zan_0[i, o] -= 1;//获取音阶代码，定义常量用const
-                    Console.WriteLine(yingui.music_zan_0[i, o]);
+                    Console.WriteLine("音高"+yingui.music_zan_0[i, o]);
 
                     //music_zan_0[index][i, o] = 59 + note + (12 * high_)+diaoshi[index];//获取该音符midi代码，有问题！！！！！！！！！！！！！！
                     
@@ -728,7 +741,7 @@ namespace sanciyuandehundan_API
                     case "up":
                         yingui.writer2.Write((byte)yingui.music_zan_3[i]);//模式与通道
                         yingui.writer2.Write((byte)(yingui.music_zan_3[i] >> 8));//音高
-                        yingui.writer2.Write((byte)0x00);//力度
+                        yingui.writer2.Write((byte)0x0);//力度
                         if (biaoji[i + 1].Equals("up"))
                         {
                             yingui.writer2.Write((byte)0);
@@ -781,14 +794,14 @@ namespace sanciyuandehundan_API
         /// <param name="num">
         /// 现在有几个音轨
         /// </param>
-        public void Music_parse_hebin(int num,int note_long) {
+        public static void Music_parse_hebin(int num,int note_long) {
             BinaryReader reader;
             BinaryWriter allwriter = new BinaryWriter(new FileStream(Environment.CurrentDirectory+"\\yingui_all.mid", FileMode.Create));
 
             allwriter.Write(yingui_start_file);//写入文件定义
             allwriter.Write(yingui_many);//写入文件定义,文件类型
             allwriter.Write((byte)0); //音轨数量
-            allwriter.Write((byte)num);//写入文件定义，音轨数量
+            allwriter.Write((byte)(num+1));//写入文件定义，音轨数量
             allwriter.Write((byte)(note_long >> 8));//如果大于7位
             allwriter.Write((byte)note_long);//一个四分音符几tick
             //该文件信息
@@ -815,9 +828,10 @@ namespace sanciyuandehundan_API
                 reader = new BinaryReader(new FileStream(Environment.CurrentDirectory + "\\yingui" + i.ToString() + "_2.mid",FileMode.Open));
                 reader.BaseStream.CopyTo(allwriter.BaseStream);
                 allwriter.Seek(0, SeekOrigin.End);
+                reader.Close();
             }//读取音轨的暂存文件,
             allwriter.Close();
-
+            
         }//将多音轨合成成一文件，Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid"
 
         public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
@@ -889,6 +903,43 @@ namespace sanciyuandehundan_API
             {65,750},
             {60,750}
         };
+
+        /// <summary>
+        /// 音符midi码
+        /// </summary>
+        public enum Music_note_collection
+        {
+            Rest = 0, C8 = 108, B7 = 107, A7s = 106, A7 = 105, G7s = 104, G7 = 103, F7s = 102, F7 = 101, E7 = 100,
+            D7s = 99, D7 = 98, C7s = 97, C7 = 96, B6 = 95, A6s = 94, A6 = 93, G6s = 92, G6 = 91, F6s = 90, F6 = 89,
+            E6 = 88, D6s = 87, D6 = 86, C6s = 85, C6 = 84, B5 = 83, A5s = 82, A5 = 81, G5s = 80, G5 = 79, F5s = 78,
+            F5 = 77, E5 = 76, D5s = 75, D5 = 74, C5s = 73, C5 = 72, B4 = 71, A4s = 70, A4 = 69, G4s = 68, G4 = 67,
+            F4s = 66, F4 = 65, E4 = 64, D4s = 63, D4 = 62, C4s = 61, C4 = 60, B3 = 59, A3s = 58, A3 = 57, G3s = 56,
+            G3 = 55, F3s = 54, F3 = 53, E3 = 52, D3s = 51, D3 = 50, C3s = 49, C3 = 48, B2 = 47, A2s = 46, A2 = 45,
+            G2s = 44, G2 = 43, F2s = 42, F2 = 41, E2 = 40, D2s = 39, D2 = 38, C2s = 37, C2 = 36, B1 = 35, A1s = 34,
+            A1 = 33, G1s = 32, G1 = 31, F1s = 30, F1 = 29, E1 = 28, D1s = 27, D1 = 26, C1s = 25, C1 = 24, B0 = 23,
+            A0s = 22, A0 = 21
+        }
+
+        /// <summary>
+        /// 乐器表
+        /// </summary>
+        public enum Music_instrument_collection
+        {
+            AcousticGrandPiano = 1, BrightAcousticPiano = 2, ElectricGrand_Piano = 3, Honky_tonkPiano = 4, ElectricPiano_1 = 5, ElectricPiano_2 = 6, Harpsichord = 7,
+            Clavinet = 8, Celesta = 9, Glockenspiel = 10, Musicalbox = 11, Vibraphone = 12, Marimba = 13, Xylophone = 14, TubularBell = 15, Dulcimer = 16,
+            DrawbarOrgan = 17, PercussiveOrgan = 18, RockOrgan = 19, Churchorgan = 20, Reedorgan = 21, Accordion = 22, Harmonica = 23, TangoAccordion = 24, AcousticGuitar_nylon = 25,
+            AcousticGuitar_steel = 26, ElectricGuitar_jazz = 27, ElectricGuitar_clean = 28, ElectricGuitar_muted = 29, OverdrivenGuitar = 30, DistortionGuitar = 31, Guitarharmonics = 32,
+            AcousticBass = 33, ElectricBass_finger = 34, ElectricBass_pick = 35, FretlessBass = 36, SlapBass_1 = 37, SlapBass_2 = 38, SynthBass_1 = 39, SynthBass_2 = 40, Violin = 41, Viola = 42,
+            Cello = 43, Contrabass = 44, TremoloStrings = 45, PizzicatoStrings = 46, OrchestralHarp = 47, Timpani = 48, StringEnsemble_1 = 49, StringEnsemble_2 = 50, SynthStrings_1 = 51,
+            SynthStrings_2 = 52, Voice_Aahs = 53, Voice_Oohs = 54, SynthVoice = 55, OrchestraHit = 56, Trumpet = 57, Trombone = 58, Tuba = 59, MutedTrumpet = 60, Frenchhorn = 61, BrassSection = 62,
+            SynthBrass_1 = 63, SynthBrass_2 = 64, SopranoSax = 65, AltoSax = 66, TenorSax = 67, BaritoneSax = 68, Oboe = 69, EnglishHorn = 70, Bassoon = 71, Clarinet = 72, Piccolo = 73, Flute = 74,
+            Recorder = 75, PanFlute = 76, BlownBottle = 77, Shakuhachi = 78, Whistle = 79, Ocarina = 80, Lead_1_square = 81, Lead_2_sawtooth = 82, Lead_3_calliope = 83, Lead_4_chiff = 84,
+            Lead_5_charang = 85, Lead_6_voice = 86, Lead_7_fifths = 87, Lead_8_bass_lead = 88, Pad_1_newage = 89, Pad_2_warm = 90, Pad_3_polysynth = 91, Pad_4_choir = 92, Pad_5_bowed = 93,
+            Pad_6_metallic = 94, Pad_7_halo = 95, Pad_8_sweep = 96, FX_1_rain = 97, FX_2_soundtrack = 98, FX_3_crystal = 99, FX_4_atmosphere = 100, FX_5_brightness = 101, FX_6_goblins = 102,
+            FX_7_echoes = 103, FX_8_sci_fi = 104, Sitar = 105, Banjo = 106, Shamisen = 107, Koto = 108, Kalimba = 109, Bagpipe = 110, Fiddle = 111, Shanai = 112, TinkleBell = 113, Agogo = 114,
+            SteelDrums = 115, Woodblock = 116, TaikoDrum = 117, MelodicTom = 118, SynthDrum = 119, ReverseCymbal = 120
+        }
+
         /*
             60  62  64  65  67   69  71
             1   2   3   4   5    6   7
