@@ -99,7 +99,7 @@ namespace sanciyuandehundan_API
 
     public class Midi
     {
-        public class yingui
+        public class Yingui
         {
             public int index;
             public int xiaojie ;//一小节几拍
@@ -125,7 +125,7 @@ namespace sanciyuandehundan_API
             public System.IO.BinaryWriter writer1;//保存单音轨的mid文件，可播放
             public System.IO.BinaryWriter writer2;//仅保存音轨数据，不可直接播放
 
-            public yingui(string sheet,int index,int instrument_,int pinlv,int note,int xiaojie_,int power_,int diaoshi)
+            public Yingui(string sheet,int index,int instrument_,int pinlv,int note,int xiaojie_,int power_,int diaoshi)
             {
                 /*instrument = instrument_;//乐器
 
@@ -289,7 +289,7 @@ namespace sanciyuandehundan_API
         /// <param name="pinlv">
         /// 一分钟几拍
         /// </param>
-        public static void Music_speed(int pinlv,yingui yingui)
+        public static void Music_speed(int pinlv,Yingui yingui)
         {
             yingui.tempo_minute = pinlv;
             yingui.note_long = 57600 / pinlv;
@@ -298,7 +298,7 @@ namespace sanciyuandehundan_API
         /// <summary>
         /// 拍子单位（几分音符）,例：32分音符输入32
         /// </summary>
-        public static void Music_note_base(int note, int xiaojie_,yingui yingui)
+        public static void Music_note_base(int note, int xiaojie_,Yingui yingui)
         {
             int k=0;
             yingui.xiaojie = xiaojie_;
@@ -329,7 +329,7 @@ namespace sanciyuandehundan_API
         /// </summary>
         /// <param name="power_"></param>
         /// <param name="index"></param>
-        public static void Music_power(int power_,string sheet,yingui yingui)
+        public static void Music_power(int power_,string sheet,Yingui yingui)
         {
             yingui.power = new int[sheet.Split('|').Length];
             yingui.power_base = power_;
@@ -340,7 +340,7 @@ namespace sanciyuandehundan_API
         /// </summary>
         /// <param name="instrument_"></param>
         /// <param name="index"></param>
-        public static void Music_instrument(int instrument_,yingui yingui)
+        public static void Music_instrument(int instrument_,Yingui yingui)
         {
             yingui.instrument = instrument_;
             //midiOutShortMsg(midiOut, instrument_ << 8 | 0xC0 + index);
@@ -351,7 +351,7 @@ namespace sanciyuandehundan_API
         /// </summary>
         /// <param name="diaoshi"></param>
         /// <param name="index"></param>
-        public static void Music_diaoshi(int diaoshi_,yingui yingui)
+        public static void Music_diaoshi(int diaoshi_,Yingui yingui)
         {
             yingui.diaoshi = diaoshi_;
         }
@@ -432,7 +432,7 @@ namespace sanciyuandehundan_API
         /// <param name="p0"></param>
         /// <param name="index"></param>
         /// <param name="diaoshi"></param>
-        public static void Music_parse(yingui yingui)
+        public static void Music_parse(Yingui yingui)
         {
             string[] p1 = yingui.yuepu.Split('|');
             string[] zan1;
