@@ -100,8 +100,17 @@ namespace sanciyuandehundan_API
 
     public class Midi
     {
+        public static char[] split = { '/', ',' };//分割格式
         public class Yingui
         {
+            public string help =
+                "instrument，midi乐器代码，有列举\n" +
+                "pinlv，一分钟几拍\n" +
+                "note，一拍是几分音符\n" +
+                "xiaojie，一小节几拍\n" +
+                "power，力度或理解为音量，范围：0~127\n" +
+                "diaoshi，音程比C大调低或高多少\n";
+
             public int index;
             public int xiaojie ;//一小节几拍
             public int xiaojie_split;//一小节可以被分成几个三拍
@@ -167,13 +176,20 @@ namespace sanciyuandehundan_API
                 Music_diaoshi(diaoshi, this);
                 Music_parse(this);
             }
-
+            public Yingui(int index)
+            {
+                this.index=index;
+            }
             public void Yingui_parse()
             {
-                writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流
-                writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流
+                writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流，文件
+                writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流，音轨
 
-                string[] zan1=yuepu.Split('|');
+                string[] zan1=yuepu.Split('|');//初步分割
+                int[] biaoji=new int[zan1.Length/2];//标记哪几格是休止符或连音线
+                string[][] zan2;// 暂存音符
+                int[] zan3;//暂存长度
+                bool[] zan4 = new bool[zan1.Length];//与下个音符间是否有连音线
                 byte[] event_type=new byte[zan1.Length];//该事件类型：0音符，1连音线，2休止符
 
                 int saigaohe=0;
@@ -182,36 +198,99 @@ namespace sanciyuandehundan_API
                     if (saigaohe < zan1[i].Split(',')[0].Split('/').Length)
                     {
                         saigaohe = zan1[i].Split(',')[0].Split('/').Length;
-                    }
-                }//检测一个和弦最多有几个音
+                    }//检测一个和弦最多有几个音
+                    if (zan1[i].Equals("-"))
+                    {
+                        event_type[i] = 1;
+                    }//记录连音线
+                    if (zan1[i].Equals("0")) 
+                    {
+                        event_type[i] = 2; 
+                    }//记录休止符
+                }
 
-                string[,] zan2=new string[zan1.Length,saigaohe];
+                zan2=new string[zan1.Length][];//暂存符号
+                zan3=new int[saigaohe];
 
-
-                for(int i = 0; i < zan1.Length; i++)
+                int forindex=0;//计数器
+                foreach (string a in zan1)
                 {
-                    //判断该事件类型
-                    event_type[i] = 0;//普通音符
-                    if (zan2[i, 0].Equals("-"))event_type[i] = 1;//连音线
-                    if (zan2[i, 0].Equals("0"))event_type[i] = 2;//休止符
+                    zan2[forindex] = a.Split(split, StringSplitOptions.RemoveEmptyEntries);
+                    forindex++;
+                }//存储
 
-                    if (event_type[i] == 0)
+                forindex = 0;
+                foreach (string[] a in zan2)
+                {
+                    if (a.Last().Equals("-")) zan4[forindex] = true;
+                     a.Where(val=>val !="-").ToArray();
+                    forindex++;
+                }
+
+                //zan2=zan2.Where(val=>val!="-").ToArray();
+
+                forindex = 0;//重置计数器
+                foreach (string[] a in zan2)
+                {
+                    event_type[forindex] = 0;//如果符号是音符
+                    if (a.Last().Equals("-")) event_type[forindex] = 1;//如果符号是连音线
+                    if (a.Last().Equals("0")) event_type[forindex] = 2;//如果符号是休止符
+
+                    switch (event_type[forindex])
+                    {
+                        case 0:
+                            writer2.Write((byte)(0x90+index));
+                            break;
+                        case 1:
+                            
+                            break;
+                        case 2:
+                            
+                            break;
+                    }
+                }
+                /*for(int i = 0; i < zan1.Length; i++)
+                {
+                    event_type[i] = 0;//音符
+                    if (zan2[0].Equals("-")) event_type[i] = 1;//连音线
+                    if (zan2[0].Equals("0")) event_type[i] = 2;//休止符
+
+                    zan2 = zan1[0].Split('/');
+
+                    if (event_type[i]==1)//如果是连音线
+                    {
+
+                        /*if (yingui.music_zan_3[i] > 16383)
+                        {
+                            yingui.writer2.Write((byte)((1 << 7) + (yingui.music_zan_3[i] >> 14)));//如果大于14位
+                        }
+                        if (yingui.music_zan_3[i] > 127)
+                        {
+                            yingui.writer2.Write((byte)((1 << 7) + (yingui.music_zan_3[i] >> 7)));//如果大于7位
+                        }
+                        byte z = (byte)yingui.music_zan_3[i];
+                        yingui.writer2.Write((byte)((byte)(z << 1) >> 1));
+                    }
+                    else if (event_type[i]==2)//如果是休止符
+                    {
+
+                    }
+                    else if (event_type[i]==0)//如果是普通音符
                     {
                         for (int j = 0; j < saigaohe; j++)
                         {
-                            writer2.Write((byte)(0x90 + index));
+                            /*writer2.Write((byte)(0x90 + index));
                             yingui.music_zan_0[i, o] = (note * 2) + (high_ * 12) + base_C - 2 + yingui.diaoshi;
                             if (note * 2 + high_ > 6) yingui.music_zan_0[i, o] -= 1;//获取音阶代码，定义常量用const
                             writer2.Write(zan2[i, j]);
                         }
-                    }else if (event_type[i] == 1)
-                    {
-
-                    }else if (event_type[i] == 2)
-                    {
-
                     }
-                }
+                    else
+                    {
+                        MessageBox.Show("格式错误");
+                        return;
+                    }
+                }*/
             }
         }
         public const float power_chang_up=1.13F;
