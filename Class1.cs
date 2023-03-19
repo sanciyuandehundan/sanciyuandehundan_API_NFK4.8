@@ -180,7 +180,7 @@ namespace sanciyuandehundan_API
             {
                 this.index=index;
             }
-            public void Yingui_parse()
+            public void Yingui_parse()//连音线尝试使用不放开，到下个音符如果相同就放开，不同就。。。，不使用音符长度相加
             {
                 writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流，文件
                 writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流，音轨
