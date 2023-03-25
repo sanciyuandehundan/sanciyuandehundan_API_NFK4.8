@@ -17,6 +17,8 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Net.NetworkInformation;
 using static sanciyuandehundan_API.Midi;
+using System.Xml;
+
 
 
 namespace sanciyuandehundan_API
@@ -100,7 +102,22 @@ namespace sanciyuandehundan_API
 
     public class Midi
     {
+        public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
+        public static byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
+        public static byte[] yingui_one = { 0x00, 0x00 };//文件定义，种类,单音轨
+        public static byte[] yingui_many = { 0x00, 0x01 };//文件定义，种类,多音轨
+        public static byte[] yingui_end = { 0xff, 0x2f, 0x00 };//音轨尾
+        public static byte[] yingui_diaohao = { 0xff, 0x59, 0x02 };//调号头
+        public static byte[] yingui_jiepai = { 0xff, 0x58, 0x04 };//节拍头
+        public static byte[] yingui_speed = { 0xff, 0x51, 0x03 };//速度头
+        public const float power_chang_up=1.13F;
+        public const float power_chang_down=0.85F;
+        public const int base_C=60;
         public static char[] split = { '/', ',' };//分割格式
+        /// <summary>
+        /// midi设备的句柄
+        /// </summary>
+        public int midiOut;
         public class Yingui
         {
             public string help =
@@ -111,7 +128,10 @@ namespace sanciyuandehundan_API
                 "power，力度或理解为音量，范围：0~127\n" +
                 "diaoshi，音程比C大调低或高多少\n";
 
-            public int index;
+            public string local_0;//.mid 文件地址，可播放
+            public string local_1;//.mid 文件地址，不可播放
+
+            public int index;//轨道
             public int xiaojie ;//一小节几拍
             public int xiaojie_split;//一小节可以被分成几个三拍
             public int[] xiaojie_split_anchored;//哪几拍是强的
@@ -173,129 +193,203 @@ namespace sanciyuandehundan_API
                 Music_note_base(note, xiaojie_, this);
                 Music_power(power_, sheet, this);
                 Music_instrument(instrument_, this);
-                Music_diaoshi(diaoshi, this);
-                Music_parse(this);
+                Music_diaoshi(diaoshi,this);
+                Yingui_parse();
             }
             public Yingui(int index)
             {
                 this.index=index;
             }
-            public void Yingui_parse()//连音线尝试使用不放开，到下个音符如果相同就放开，不同就。。。，不使用音符长度相加
+            public void Yingui_parse()
             {
                 writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流，文件
                 writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流，音轨
 
-                string[] zan1=yuepu.Split('|');//初步分割
-                int[] biaoji=new int[zan1.Length/2];//标记哪几格是休止符或连音线
-                string[][] zan2;// 暂存音符
-                int[] zan3;//暂存长度
-                bool[] zan4 = new bool[zan1.Length];//与下个音符间是否有连音线
-                byte[] event_type=new byte[zan1.Length];//该事件类型：0音符，1连音线，2休止符
+                int l = 1;
+                Music_stream_file(writer1, ref l, ref note_long);//写入文件头
+                Music_stream_global(writer1);//写入全局音轨
+                Music_stream_start(writer2, this);//写入音轨头
 
-                int saigaohe=0;
-                for(int i = 0; i < zan1.Length; i++)
+                string[] pu1 = yuepu.Split('|');//分割为一个一个的和弦
+                string[][] pu2 = new string[pu1.Length][];
+
+                int forindex_0 = 0;
+                foreach (string p in pu1)
                 {
-                    if (saigaohe < zan1[i].Split(',')[0].Split('/').Length)
-                    {
-                        saigaohe = zan1[i].Split(',')[0].Split('/').Length;
-                    }//检测一个和弦最多有几个音
-                    if (zan1[i].Equals("-"))
-                    {
-                        event_type[i] = 1;
-                    }//记录连音线
-                    if (zan1[i].Equals("0")) 
-                    {
-                        event_type[i] = 2; 
-                    }//记录休止符
-                }
+                    pu2[forindex_0] = p.Split(split, StringSplitOptions.RemoveEmptyEntries);
+                    forindex_0++;
+                }//分割为一个一个音高和长度
 
-                zan2=new string[zan1.Length][];//暂存符号
-                zan3=new int[saigaohe];
+                int forindex_1 = 0;
+                int forindex_2 = 0;
+                int time = 0;
+                double time_end = 0.1;
 
-                int forindex=0;//计数器
-                foreach (string a in zan1)
+                for (int i = 0; i < pu1.Length; i++)
                 {
-                    zan2[forindex] = a.Split(split, StringSplitOptions.RemoveEmptyEntries);
-                    forindex++;
-                }//存储
-
-                forindex = 0;
-                foreach (string[] a in zan2)
-                {
-                    if (a.Last().Equals("-")) zan4[forindex] = true;
-                     a.Where(val=>val !="-").ToArray();
-                    forindex++;
-                }
-
-                //zan2=zan2.Where(val=>val!="-").ToArray();
-
-                forindex = 0;//重置计数器
-                foreach (string[] a in zan2)
-                {
-                    event_type[forindex] = 0;//如果符号是音符
-                    if (a.Last().Equals("-")) event_type[forindex] = 1;//如果符号是连音线
-                    if (a.Last().Equals("0")) event_type[forindex] = 2;//如果符号是休止符
-
-                    switch (event_type[forindex])
+                    time = Music_stream_time(pu2[i].Last(), this);
+                    time_end = 0.1;
+                    if (pu2[i].First().Equals("k"))
                     {
-                        case 0:
-                            writer2.Write((byte)(0x90+index));
-                            break;
-                        case 1:
-                            
-                            break;
-                        case 2:
-                            
-                            break;
-                    }
-                }
-                /*for(int i = 0; i < zan1.Length; i++)
-                {
-                    event_type[i] = 0;//音符
-                    if (zan2[0].Equals("-")) event_type[i] = 1;//连音线
-                    if (zan2[0].Equals("0")) event_type[i] = 2;//休止符
-
-                    zan2 = zan1[0].Split('/');
-
-                    if (event_type[i]==1)//如果是连音线
+                        continue;
+                    }//跳过
+                    if (i < pu2.GetLength(0) - 1)
                     {
-
-                        /*if (yingui.music_zan_3[i] > 16383)
+                        if (pu2[i + 1][0].Equals("0"))
                         {
-                            yingui.writer2.Write((byte)((1 << 7) + (yingui.music_zan_3[i] >> 14)));//如果大于14位
-                        }
-                        if (yingui.music_zan_3[i] > 127)
-                        {
-                            yingui.writer2.Write((byte)((1 << 7) + (yingui.music_zan_3[i] >> 7)));//如果大于7位
-                        }
-                        byte z = (byte)yingui.music_zan_3[i];
-                        yingui.writer2.Write((byte)((byte)(z << 1) >> 1));
-                    }
-                    else if (event_type[i]==2)//如果是休止符
-                    {
+                            forindex_2 = i + 1;
+                            do
+                            {
+                                time += Music_stream_time(pu2[forindex_2][1], this);
+                                pu2[i][0] = "k";
+                                forindex_2++;
+                            } while (pu2[forindex_2][0].Equals("0"));//多个休止符
 
-                    }
-                    else if (event_type[i]==0)//如果是普通音符
-                    {
-                        for (int j = 0; j < saigaohe; j++)
+                        }//如果下一个是休止符
+                        else if (pu2[i + 1][0].Equals("-"))
                         {
-                            /*writer2.Write((byte)(0x90 + index));
-                            yingui.music_zan_0[i, o] = (note * 2) + (high_ * 12) + base_C - 2 + yingui.diaoshi;
-                            if (note * 2 + high_ > 6) yingui.music_zan_0[i, o] -= 1;//获取音阶代码，定义常量用const
-                            writer2.Write(zan2[i, j]);
-                        }
-                    }
-                    else
+                            if (pu2[i + 2][0].Equals(pu2[i][0]))
+                            {
+                                time = Music_stream_time(pu2[i + 2].Last(), this);
+                                pu2[i + 2][0] = "k";
+                            }//如果连音线连接的是两相同音符
+                            else
+                            {
+                                time_end = 0;
+                            }//如果连音线连接的是两不同音符
+                        }//如果下一个是连音线
+                    }//特殊事件
+                    forindex_1 = 0;
+                    foreach (string p in pu2[i])
                     {
-                        MessageBox.Show("格式错误");
-                        return;
+                        if (forindex_1 != pu2[i].Length - 1)
+                        {
+                            writer2.Write((byte)(0x90 + index));//格式
+                            writer2.Write(((byte)(Music_stream_note(p) + diaoshi)));//音高   
+                            Console.WriteLine("note:"+ (byte)(Music_stream_note(p) + diaoshi));
+                            Music_stream_power(time, this);
+                            forindex_1++;
+                            if (forindex_1 != pu2[i].Length - 1)
+                            {
+                                writer2.Write((byte)0);
+                            }//如果下一个指向的还是音符
+                        }
+                    }//按下
+                    Music_stream_time((int)(time * (1 - time_end)), writer2);//分割———————————————————————————————————
+                    forindex_1 = 0;
+                    foreach (string p in pu2[i])
+                    {
+                        if (forindex_1 != pu2[i].Length - 1)
+                        {
+                            writer2.Write((byte)(0x80 + index));//格式
+                            writer2.Write(((byte)(Music_stream_note(p) + diaoshi)));//音高
+                            writer2.Write((byte)0);
+                            //Music_stream_power(time, this);
+                            forindex_1++;
+                            if (forindex_1 != pu2[i].Length - 1)
+                            {
+                                writer2.Write((byte)0);
+                            }//如果下一个指向的还是音符
+                        }
+                    }//放开
+                    if (i != pu1.Length - 1) Music_stream_time((int)(time * time_end), writer2);//分割——————————————————————————
+                }//音轨
+                Music_stream_end(writer2, this);
+                writer2.Seek(0, SeekOrigin.Begin);
+                writer2.BaseStream.CopyTo(writer1.BaseStream);
+                writer1.Close();
+                writer2.Close();
+            }
+                
+            private static void Music_stream_power(int i,Yingui yingui)
+            {
+                yingui.writer2.Write((byte)yingui.power_base);
+                //return (byte)Math.Sin(1);
+            }
+
+            /// <summary>
+            /// 计算时间
+            /// </summary>
+            /// <param name="i"></param>
+            /// <returns></returns>
+            internal static int Music_stream_time(string i,Yingui yingui)
+            {
+                string time_="";
+                int point = 0;
+                double time=0;
+                foreach (char a in i)
+                {
+                    if (a == '.')
+                    {
+                        point++;//有几个点
                     }
-                }*/
+                    else if (double.TryParse(a.ToString(),out time))
+                    {
+                        time_ += a;
+                    }
+                }
+                time=int.Parse(time_);
+                time = (1 / yingui.note_base) / time*yingui.note_long;//计算无附点的长度
+                time *= Math.Pow(1.5,point);//计算附点
+                return ((int)time);
+            }
+
+            /// <summary>
+            /// 写入时间
+            /// </summary>
+            /// <param name="i"></param>
+            internal static void Music_stream_time(int i,BinaryWriter writer)
+            {
+                //Console.Write("time:"+i);
+                if (i > 16383)
+                {
+                    writer.Write((byte)((1 << 7) + (i >> 14)));
+                    //Console.Write(" t3:" + (byte)((1 << 7) + (i >> 14)));
+                }
+                if (i > 127)
+                {
+                    writer.Write((byte)((1 << 7) + (i >> 7)));
+                    //Console.Write(" t2:" + (byte)((1 << 7) + (i >> 7)));
+                }
+                writer.Write((byte)(((byte)(i<<1))>>1));
+                //Console.WriteLine(" t1:" + (byte)(((byte)(i << 1)) >> 1));
+            }
+
+            /// <summary>
+            /// 计算音高
+            /// </summary>
+            /// <param name="note"></param>
+            /// <returns></returns>
+            private static byte Music_stream_note(string note)
+            {
+                //var biao =/ [0-9] g / ;
+                int highdown = 0;//低或高几个八度
+                int updown = 0;
+                foreach(char a in note)
+                {
+                    if (a == '-')
+                    {
+                        highdown--;
+                    }//低一个八度
+                    else if (a == '+')
+                    {
+                        highdown++;
+                    }//高一个八度
+                    else if (a=='♭')
+                    {
+                        updown--;
+                    }//降记号
+                    else if (a=='♯')
+                    {
+                        updown++;
+                    }//升记号
+                }
+                int note_ = note.Last()-'0';
+                //note_=note_*2
+                return (byte)((note_*2)+(highdown*12)+updown+base_C-2);
             }
         }
-        public const float power_chang_up=1.13F;
-        public const float power_chang_down=0.85F;
-        public const int base_C=60;
+
         /*public int[] xiaojie=new int[16];//一小节几拍
         public int[] xiaojie_split=new int[16];//一小节可以被分成几个三拍
         public int[][] xiaojie_split_anchored=new int[16][];//哪几拍是强的
@@ -349,15 +443,8 @@ namespace sanciyuandehundan_API
         [DllImport("winmm.dll")]
         public extern static int midiOutShortMsg(int lphMidiOut, int dwMsg);
 
-
-        [DllImport("sanciyuandehundan_API_Cpp.dll", EntryPoint = "midi_play", CallingConvention = CallingConvention.Cdecl)]
-        public static extern void midi_play(/*int[] yuepu,int midiout*/);
-
-
-        /// <summary>
-        /// midi设备的句柄
-        /// </summary>
-        public int midiOut;
+        //[DllImport("sanciyuandehundan_API_Cpp.dll", EntryPoint = "midi_play", CallingConvention = CallingConvention.Cdecl)]
+        //public static extern void midi_play(/*int[] yuepu,int midiout*/);
 
         public Midi()
         {
@@ -443,7 +530,7 @@ namespace sanciyuandehundan_API
         /// </summary>
         /// <param name="diaoshi"></param>
         /// <param name="index"></param>
-        public static void Music_diaoshi(int diaoshi_,Yingui yingui)
+        public static void Music_diaoshi(int diaoshi_, Yingui yingui)
         {
             yingui.diaoshi = diaoshi_;
         }
@@ -459,6 +546,232 @@ namespace sanciyuandehundan_API
             
         }
 
+        public static void Music_parse_hebin(int num,int note_long) {
+            BinaryReader reader;
+            BinaryWriter allwriter = new BinaryWriter(new FileStream(Environment.CurrentDirectory+"\\yingui_all.mid", FileMode.Create));
+
+            /*allwriter.Write(yingui_start_file);//写入文件定义
+            allwriter.Write(yingui_many);//写入文件定义,文件类型
+            allwriter.Write((byte)0); //音轨数量
+            allwriter.Write((byte)(num+1));//写入文件定义，音轨数量
+            allwriter.Write((byte)(note_long >> 8));//如果大于7位
+            allwriter.Write((byte)note_long);//一个四分音符几tick
+            //该文件信息*/
+            Music_stream_file(allwriter, ref num, ref note_long);
+
+            /*allwriter.Write(yingui_start);//写入音轨头
+            allwriter.Write((short)0); //音轨长度
+            allwriter.Write((byte)0); //音轨长度
+            allwriter.Write((byte)0x4);//写入音轨长度
+            allwriter.Write((byte)0x00);//分隔
+            //allwriter.Write(yingui_diaohao);//调号头
+            //allwriter.Write((byte)diaoshi);//调号
+            //allwriter.Write((byte)0x00);//调号,大调还是小调
+            //allwriter.Write((byte)0x00);//分隔
+            //allwriter.Write(yingui_jiepai);//节拍头
+            //allwriter.Write((byte)xiaojie[0]);//一小节几拍
+            //allwriter.Write((byte)(1 / note_base[0]));//一拍是几分音符
+            //allwriter.Write((byte)0x18);//节拍器时钟
+            allwriter.Write((byte)0x08);//一四分音符几个32分音符
+            allwriter.Write((byte)0x00);//分隔
+            allwriter.Write(yingui_end);//写入音轨尾
+            //全局音轨*/
+            Music_stream_global(allwriter);
+
+            for (int i=0;i<num;i++)
+            {
+                reader = new BinaryReader(new FileStream(Environment.CurrentDirectory + "\\yingui" + i.ToString() + "_2.mid",FileMode.Open));
+                reader.BaseStream.CopyTo(allwriter.BaseStream);
+                allwriter.Seek(0, SeekOrigin.End);
+                reader.Close();
+            }//读取音轨的暂存文件,
+            allwriter.Close();
+            
+        }//将多音轨合成成一文件，Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid"
+
+        /// <summary>
+        /// 写入 .mid 文件的开头
+        /// </summary>
+        /// <param name="writer">
+        /// 流
+        /// </param>
+        /// <param name="num">
+        /// 几个音轨
+        /// </param>
+        /// <param name="note_long">
+        /// 一个四分音符多长
+        /// </param>
+        private static void Music_stream_file(BinaryWriter writer,ref int num,ref int note_long)
+        {
+            writer.Write(yingui_start_file);//写入文件定义
+            writer.Write(yingui_many);//写入文件定义,文件类型
+            writer.Write((byte)0); //音轨数量
+            writer.Write((byte)(num + 1));//写入文件定义，音轨数量
+            writer.Write((byte)(note_long >> 8));//如果大于7位
+            writer.Write((byte)note_long);//一个四分音符几tick
+            //该文件信息
+        }
+
+        /// <summary>
+        /// 写入全局音轨
+        /// </summary>
+        /// <param name="writer">
+        /// 流
+        /// </param>
+        private static void Music_stream_global(BinaryWriter writer)
+        {
+            writer.Write(yingui_start);//写入音轨头
+            writer.Write((short)0); //音轨长度
+            writer.Write((byte)0); //音轨长度
+            writer.Write((byte)0x4);//写入音轨长度
+            writer.Write((byte)0x00);//分隔
+            writer.Write(yingui_end);//写入音轨尾
+            //全局音轨
+        }
+
+        /// <summary>
+        /// 写入音轨结尾
+        /// </summary>
+        /// <param name="writer"></param>
+        private static void Music_stream_end(BinaryWriter writer,Yingui yingui)
+        {
+            Yingui.Music_stream_time(yingui.note_long,writer);//结尾间隔
+            writer.Write(yingui_end);
+            writer.Seek(7, SeekOrigin.Begin);//到之前预留的空位
+            writer.Write((byte)(writer.BaseStream.Length - 8));//写入音轨长度
+            if (writer.BaseStream.Length > 65535)
+            {
+                writer.Seek(5, SeekOrigin.Begin);//到之前预留的空位
+                writer.Write((byte)(writer.BaseStream.Length >> 16));//写入音轨长度
+            }//写入音轨长度
+            if (writer.BaseStream.Length > 255)
+            {
+                writer.Seek(6, SeekOrigin.Begin);//到之前预留的空位
+                writer.Write((byte)(writer.BaseStream.Length >> 8));//写入音轨长度
+            }//写入音轨长度
+            writer.Seek(7, SeekOrigin.Begin);//到之前预留的空位
+            writer.Write((byte)(writer.BaseStream.Length - 8));//写入音轨长度
+        }
+
+        /// <summary>
+        /// 写入音轨开头
+        /// </summary>
+        /// <param name="writer"></param>
+        /// <param name="yingui"></param>
+        private static void Music_stream_start(BinaryWriter writer,Yingui yingui)
+        {
+            writer.Write(yingui_start);//写入音轨头
+            writer.Write((byte)0x00);//预留音轨长度空位
+            writer.Write((byte)0x00);//预留音轨长度空位
+            writer.Write((byte)0x00);//预留音轨长度空位
+            writer.Write((byte)0x00);//预留音轨长度空位
+            writer.Write((byte)0x00);//分隔
+            writer.Write((byte)(0xc0 + yingui.index));//乐器
+            writer.Write((byte)yingui.instrument);//乐器
+            writer.Write((byte)0x00);//分隔
+            //该音轨信息
+        }
+
+
+        
+
+        public int[,] p = new int[10, 2]
+        {
+            {65,750},
+            {64,750},
+            {67,750},
+            {65,750},
+            {60,750},
+            {65,750},
+            {64,750},
+            {67,750},
+            {65,750},
+            {60,750}
+        };
+
+        /// <summary>
+        /// 音符midi码
+        /// </summary>
+        public enum Music_note_collection
+        {
+            Rest = 0, C8 = 108, B7 = 107, A7s = 106, A7 = 105, G7s = 104, G7 = 103, F7s = 102, F7 = 101, E7 = 100,
+            D7s = 99, D7 = 98, C7s = 97, C7 = 96, B6 = 95, A6s = 94, A6 = 93, G6s = 92, G6 = 91, F6s = 90, F6 = 89,
+            E6 = 88, D6s = 87, D6 = 86, C6s = 85, C6 = 84, B5 = 83, A5s = 82, A5 = 81, G5s = 80, G5 = 79, F5s = 78,
+            F5 = 77, E5 = 76, D5s = 75, D5 = 74, C5s = 73, C5 = 72, B4 = 71, A4s = 70, A4 = 69, G4s = 68, G4 = 67,
+            F4s = 66, F4 = 65, E4 = 64, D4s = 63, D4 = 62, C4s = 61, C4 = 60, B3 = 59, A3s = 58, A3 = 57, G3s = 56,
+            G3 = 55, F3s = 54, F3 = 53, E3 = 52, D3s = 51, D3 = 50, C3s = 49, C3 = 48, B2 = 47, A2s = 46, A2 = 45,
+            G2s = 44, G2 = 43, F2s = 42, F2 = 41, E2 = 40, D2s = 39, D2 = 38, C2s = 37, C2 = 36, B1 = 35, A1s = 34,
+            A1 = 33, G1s = 32, G1 = 31, F1s = 30, F1 = 29, E1 = 28, D1s = 27, D1 = 26, C1s = 25, C1 = 24, B0 = 23,
+            A0s = 22, A0 = 21
+        }
+
+        /// <summary>
+        /// 乐器表
+        /// </summary>
+        public enum Music_instrument_collection
+        {
+            AcousticGrandPiano = 1, BrightAcousticPiano = 2, ElectricGrand_Piano = 3, Honky_tonkPiano = 4, ElectricPiano_1 = 5, ElectricPiano_2 = 6, Harpsichord = 7,
+            Clavinet = 8, Celesta = 9, Glockenspiel = 10, Musicalbox = 11, Vibraphone = 12, Marimba = 13, Xylophone = 14, TubularBell = 15, Dulcimer = 16,
+            DrawbarOrgan = 17, PercussiveOrgan = 18, RockOrgan = 19, Churchorgan = 20, Reedorgan = 21, Accordion = 22, Harmonica = 23, TangoAccordion = 24, AcousticGuitar_nylon = 25,
+            AcousticGuitar_steel = 26, ElectricGuitar_jazz = 27, ElectricGuitar_clean = 28, ElectricGuitar_muted = 29, OverdrivenGuitar = 30, DistortionGuitar = 31, Guitarharmonics = 32,
+            AcousticBass = 33, ElectricBass_finger = 34, ElectricBass_pick = 35, FretlessBass = 36, SlapBass_1 = 37, SlapBass_2 = 38, SynthBass_1 = 39, SynthBass_2 = 40, Violin = 41, Viola = 42,
+            Cello = 43, Contrabass = 44, TremoloStrings = 45, PizzicatoStrings = 46, OrchestralHarp = 47, Timpani = 48, StringEnsemble_1 = 49, StringEnsemble_2 = 50, SynthStrings_1 = 51,
+            SynthStrings_2 = 52, Voice_Aahs = 53, Voice_Oohs = 54, SynthVoice = 55, OrchestraHit = 56, Trumpet = 57, Trombone = 58, Tuba = 59, MutedTrumpet = 60, Frenchhorn = 61, BrassSection = 62,
+            SynthBrass_1 = 63, SynthBrass_2 = 64, SopranoSax = 65, AltoSax = 66, TenorSax = 67, BaritoneSax = 68, Oboe = 69, EnglishHorn = 70, Bassoon = 71, Clarinet = 72, Piccolo = 73, Flute = 74,
+            Recorder = 75, PanFlute = 76, BlownBottle = 77, Shakuhachi = 78, Whistle = 79, Ocarina = 80, Lead_1_square = 81, Lead_2_sawtooth = 82, Lead_3_calliope = 83, Lead_4_chiff = 84,
+            Lead_5_charang = 85, Lead_6_voice = 86, Lead_7_fifths = 87, Lead_8_bass_lead = 88, Pad_1_newage = 89, Pad_2_warm = 90, Pad_3_polysynth = 91, Pad_4_choir = 92, Pad_5_bowed = 93,
+            Pad_6_metallic = 94, Pad_7_halo = 95, Pad_8_sweep = 96, FX_1_rain = 97, FX_2_soundtrack = 98, FX_3_crystal = 99, FX_4_atmosphere = 100, FX_5_brightness = 101, FX_6_goblins = 102,
+            FX_7_echoes = 103, FX_8_sci_fi = 104, Sitar = 105, Banjo = 106, Shamisen = 107, Koto = 108, Kalimba = 109, Bagpipe = 110, Fiddle = 111, Shanai = 112, TinkleBell = 113, Agogo = 114,
+            SteelDrums = 115, Woodblock = 116, TaikoDrum = 117, MelodicTom = 118, SynthDrum = 119, ReverseCymbal = 120
+        }
+
+        /*for (int i=0; i<p1.Length; i++)
+{
+    stop[index][i] = true;
+
+    zan = p1[i].Split(',');
+    p[i] = zan[0];//音阶
+    l[i] = zan[1];//音符
+    high_ = 0;
+    //Console.WriteLine(p[i]+" "+l[i]);
+
+    if (p[i].Contains("/"))
+    {
+        string[] zan_h= p[i].Split('/');
+        p[i]= zan_h[0];
+        p_h[i,0]= zan_h[1];
+        if (zan_h.Length > 2) p_h[i, 1] = zan_h[2];
+
+        //music_he[index][i,0]=p[i].Split('/')[0];
+    }
+
+    for (int k = 0; k < p[i].Length; k++)
+    {
+        if (p[i][k] == '-')
+        {
+            high_--;
+        }
+        else if (p[i][k]=='+')
+        {
+            high_++;
+        }
+        else
+        {
+            note = int.Parse(p[i][k].ToString());
+        }
+    }//计算单个音符的音高
+    sheets[index][i, 0] = 59 + note + (12 * high_) + diaoshi;
+
+    sheets[index][i, 1] = (int)(note_long[index] * ((1.0F / (l[i][0] - '0')) / note_base[index]));//音符基本长度
+    for (int k=1; k < l[i].Length;k++)
+    {
+        sheets[index][i, 1] += sheets[index][i, 1] / 2*k;
+    }//附点音符
+
+    music[index][i, 0] = power[index] << 16 | sheets[index][i, 0] << 8 | 0x90 + index;
+    music[index][i, 4] = sheets[index][i, 1];
+    Console.WriteLine(music[index][i, 0].ToString() + '/' + music[index][i,1].ToString());
+}//将每个音符分别存储*/
         /*midiOutShortMsg(midiOut, 100 << 16 + 60 << 8 + 0x90);
             for (int i = 0; i < music_zan_2[index].GetLength(0); i++)
             {
@@ -517,14 +830,13 @@ namespace sanciyuandehundan_API
             }//结束尾音
             Console.WriteLine(System.DateTime.Now);
             *///效率太低，被弃用，原play函数
-
         /// <summary>
         /// 解析简谱输入
         /// </summary>
         /// <param name="p0"></param>
         /// <param name="index"></param>
         /// <param name="diaoshi"></param>
-        public static void Music_parse(Yingui yingui)
+        /*public static void Music_parse(Yingui yingui)
         {
             string[] p1 = yingui.yuepu.Split('|');
             string[] zan1;
@@ -777,7 +1089,7 @@ namespace sanciyuandehundan_API
             writer1.Write((byte)0x08);//一四分音符几个32分音符
             writer1.Write((byte)0x00);//分隔
             //writer1.Write(yingui_speed);//写入速度头
-            //writer1.Write((byte)0x00);//分隔*/
+            //writer1.Write((byte)0x00);//分隔
             yingui.writer1.Write(yingui_end);//写入音轨尾
             //全局音轨
 
@@ -865,160 +1177,14 @@ namespace sanciyuandehundan_API
             //midiOutShortMsg(midiOut, 0x4f << 16 | 0x40 << 8 | 0x90);
             //midi_play(me[index], midiOut);
             //Console.WriteLine("a");
-        }
-
+        }//废弃！！！！！！！！！！！！！！！！！！！！！！！
+        */
         /// <summary>
         /// 将单音轨暂存合成多音轨文件
         /// </summary>
         /// <param name="num">
         /// 现在有几个音轨
         /// </param>
-        public static void Music_parse_hebin(int num,int note_long) {
-            BinaryReader reader;
-            BinaryWriter allwriter = new BinaryWriter(new FileStream(Environment.CurrentDirectory+"\\yingui_all.mid", FileMode.Create));
-
-            allwriter.Write(yingui_start_file);//写入文件定义
-            allwriter.Write(yingui_many);//写入文件定义,文件类型
-            allwriter.Write((byte)0); //音轨数量
-            allwriter.Write((byte)(num+1));//写入文件定义，音轨数量
-            allwriter.Write((byte)(note_long >> 8));//如果大于7位
-            allwriter.Write((byte)note_long);//一个四分音符几tick
-            //该文件信息
-
-            allwriter.Write(yingui_start);//写入音轨头
-            allwriter.Write((short)0); //音轨长度
-            allwriter.Write((byte)0); //音轨长度
-            allwriter.Write((byte)0x4);//写入音轨长度
-            allwriter.Write((byte)0x00);//分隔
-            /*allwriter.Write(yingui_diaohao);//调号头
-            allwriter.Write((byte)diaoshi);//调号
-            allwriter.Write((byte)0x00);//调号,大调还是小调
-            allwriter.Write((byte)0x00);//分隔
-            allwriter.Write(yingui_jiepai);//节拍头
-            allwriter.Write((byte)xiaojie[0]);//一小节几拍
-            allwriter.Write((byte)(1 / note_base[0]));//一拍是几分音符
-            allwriter.Write((byte)0x18);//节拍器时钟
-            allwriter.Write((byte)0x08);//一四分音符几个32分音符
-            allwriter.Write((byte)0x00);//分隔*/
-            allwriter.Write(yingui_end);//写入音轨尾
-            //全局音轨
-            for (int i=0;i<num;i++)
-            {
-                reader = new BinaryReader(new FileStream(Environment.CurrentDirectory + "\\yingui" + i.ToString() + "_2.mid",FileMode.Open));
-                reader.BaseStream.CopyTo(allwriter.BaseStream);
-                allwriter.Seek(0, SeekOrigin.End);
-                reader.Close();
-            }//读取音轨的暂存文件,
-            allwriter.Close();
-            
-        }//将多音轨合成成一文件，Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid"
-
-        public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
-        public static byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
-        public static byte[] yingui_one = { 0x00, 0x00 };//文件定义，种类,单音轨
-        public static byte[] yingui_many = { 0x00, 0x01 };//文件定义，种类,多音轨
-        public static byte[] yingui_end = { 0xff, 0x2f, 0x00 };//音轨尾
-        public static byte[] yingui_diaohao = { 0xff, 0x59, 0x02 };//调号头
-        public static byte[] yingui_jiepai = { 0xff, 0x58, 0x04 };//节拍头
-        public static byte[] yingui_speed = { 0xff, 0x51, 0x03 };//速度头
-        /*for (int i=0; i<p1.Length; i++)
-{
-    stop[index][i] = true;
-
-    zan = p1[i].Split(',');
-    p[i] = zan[0];//音阶
-    l[i] = zan[1];//音符
-    high_ = 0;
-    //Console.WriteLine(p[i]+" "+l[i]);
-
-    if (p[i].Contains("/"))
-    {
-        string[] zan_h= p[i].Split('/');
-        p[i]= zan_h[0];
-        p_h[i,0]= zan_h[1];
-        if (zan_h.Length > 2) p_h[i, 1] = zan_h[2];
-
-        //music_he[index][i,0]=p[i].Split('/')[0];
-    }
-
-    for (int k = 0; k < p[i].Length; k++)
-    {
-        if (p[i][k] == '-')
-        {
-            high_--;
-        }
-        else if (p[i][k]=='+')
-        {
-            high_++;
-        }
-        else
-        {
-            note = int.Parse(p[i][k].ToString());
-        }
-    }//计算单个音符的音高
-    sheets[index][i, 0] = 59 + note + (12 * high_) + diaoshi;
-
-    sheets[index][i, 1] = (int)(note_long[index] * ((1.0F / (l[i][0] - '0')) / note_base[index]));//音符基本长度
-    for (int k=1; k < l[i].Length;k++)
-    {
-        sheets[index][i, 1] += sheets[index][i, 1] / 2*k;
-    }//附点音符
-
-    music[index][i, 0] = power[index] << 16 | sheets[index][i, 0] << 8 | 0x90 + index;
-    music[index][i, 4] = sheets[index][i, 1];
-    Console.WriteLine(music[index][i, 0].ToString() + '/' + music[index][i,1].ToString());
-}//将每个音符分别存储*/
-
-        public int[,] p = new int[10, 2]
-        {
-            {65,750},
-            {64,750},
-            {67,750},
-            {65,750},
-            {60,750},
-            {65,750},
-            {64,750},
-            {67,750},
-            {65,750},
-            {60,750}
-        };
-
-        /// <summary>
-        /// 音符midi码
-        /// </summary>
-        public enum Music_note_collection
-        {
-            Rest = 0, C8 = 108, B7 = 107, A7s = 106, A7 = 105, G7s = 104, G7 = 103, F7s = 102, F7 = 101, E7 = 100,
-            D7s = 99, D7 = 98, C7s = 97, C7 = 96, B6 = 95, A6s = 94, A6 = 93, G6s = 92, G6 = 91, F6s = 90, F6 = 89,
-            E6 = 88, D6s = 87, D6 = 86, C6s = 85, C6 = 84, B5 = 83, A5s = 82, A5 = 81, G5s = 80, G5 = 79, F5s = 78,
-            F5 = 77, E5 = 76, D5s = 75, D5 = 74, C5s = 73, C5 = 72, B4 = 71, A4s = 70, A4 = 69, G4s = 68, G4 = 67,
-            F4s = 66, F4 = 65, E4 = 64, D4s = 63, D4 = 62, C4s = 61, C4 = 60, B3 = 59, A3s = 58, A3 = 57, G3s = 56,
-            G3 = 55, F3s = 54, F3 = 53, E3 = 52, D3s = 51, D3 = 50, C3s = 49, C3 = 48, B2 = 47, A2s = 46, A2 = 45,
-            G2s = 44, G2 = 43, F2s = 42, F2 = 41, E2 = 40, D2s = 39, D2 = 38, C2s = 37, C2 = 36, B1 = 35, A1s = 34,
-            A1 = 33, G1s = 32, G1 = 31, F1s = 30, F1 = 29, E1 = 28, D1s = 27, D1 = 26, C1s = 25, C1 = 24, B0 = 23,
-            A0s = 22, A0 = 21
-        }
-
-        /// <summary>
-        /// 乐器表
-        /// </summary>
-        public enum Music_instrument_collection
-        {
-            AcousticGrandPiano = 1, BrightAcousticPiano = 2, ElectricGrand_Piano = 3, Honky_tonkPiano = 4, ElectricPiano_1 = 5, ElectricPiano_2 = 6, Harpsichord = 7,
-            Clavinet = 8, Celesta = 9, Glockenspiel = 10, Musicalbox = 11, Vibraphone = 12, Marimba = 13, Xylophone = 14, TubularBell = 15, Dulcimer = 16,
-            DrawbarOrgan = 17, PercussiveOrgan = 18, RockOrgan = 19, Churchorgan = 20, Reedorgan = 21, Accordion = 22, Harmonica = 23, TangoAccordion = 24, AcousticGuitar_nylon = 25,
-            AcousticGuitar_steel = 26, ElectricGuitar_jazz = 27, ElectricGuitar_clean = 28, ElectricGuitar_muted = 29, OverdrivenGuitar = 30, DistortionGuitar = 31, Guitarharmonics = 32,
-            AcousticBass = 33, ElectricBass_finger = 34, ElectricBass_pick = 35, FretlessBass = 36, SlapBass_1 = 37, SlapBass_2 = 38, SynthBass_1 = 39, SynthBass_2 = 40, Violin = 41, Viola = 42,
-            Cello = 43, Contrabass = 44, TremoloStrings = 45, PizzicatoStrings = 46, OrchestralHarp = 47, Timpani = 48, StringEnsemble_1 = 49, StringEnsemble_2 = 50, SynthStrings_1 = 51,
-            SynthStrings_2 = 52, Voice_Aahs = 53, Voice_Oohs = 54, SynthVoice = 55, OrchestraHit = 56, Trumpet = 57, Trombone = 58, Tuba = 59, MutedTrumpet = 60, Frenchhorn = 61, BrassSection = 62,
-            SynthBrass_1 = 63, SynthBrass_2 = 64, SopranoSax = 65, AltoSax = 66, TenorSax = 67, BaritoneSax = 68, Oboe = 69, EnglishHorn = 70, Bassoon = 71, Clarinet = 72, Piccolo = 73, Flute = 74,
-            Recorder = 75, PanFlute = 76, BlownBottle = 77, Shakuhachi = 78, Whistle = 79, Ocarina = 80, Lead_1_square = 81, Lead_2_sawtooth = 82, Lead_3_calliope = 83, Lead_4_chiff = 84,
-            Lead_5_charang = 85, Lead_6_voice = 86, Lead_7_fifths = 87, Lead_8_bass_lead = 88, Pad_1_newage = 89, Pad_2_warm = 90, Pad_3_polysynth = 91, Pad_4_choir = 92, Pad_5_bowed = 93,
-            Pad_6_metallic = 94, Pad_7_halo = 95, Pad_8_sweep = 96, FX_1_rain = 97, FX_2_soundtrack = 98, FX_3_crystal = 99, FX_4_atmosphere = 100, FX_5_brightness = 101, FX_6_goblins = 102,
-            FX_7_echoes = 103, FX_8_sci_fi = 104, Sitar = 105, Banjo = 106, Shamisen = 107, Koto = 108, Kalimba = 109, Bagpipe = 110, Fiddle = 111, Shanai = 112, TinkleBell = 113, Agogo = 114,
-            SteelDrums = 115, Woodblock = 116, TaikoDrum = 117, MelodicTom = 118, SynthDrum = 119, ReverseCymbal = 120
-        }
-
         /*
             60  62  64  65  67   69  71
             1   2   3   4   5    6   7
