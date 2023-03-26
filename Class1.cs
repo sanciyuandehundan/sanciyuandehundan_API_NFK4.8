@@ -102,6 +102,7 @@ namespace sanciyuandehundan_API
 
     public class Midi
     {
+        private static byte[] dadaio = { 0, 0, 2, 4, 5, 7, 9, 11 };
         public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
         public static byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
         public static byte[] yingui_one = { 0x00, 0x00 };//文件定义，种类,单音轨
@@ -128,8 +129,8 @@ namespace sanciyuandehundan_API
                 "power，力度或理解为音量，范围：0~127\n" +
                 "diaoshi，音程比C大调低或高多少\n";
 
-            public string local_0;//.mid 文件地址，可播放
-            public string local_1;//.mid 文件地址，不可播放
+            public string local_1;//.mid 文件地址，可播放
+            public string local_2;//.mid 文件地址，不可播放
 
             public int index;//轨道
             public int xiaojie ;//一小节几拍
@@ -142,15 +143,15 @@ namespace sanciyuandehundan_API
             public int note_long;//一拍几tick
             public int instrument;//乐器
             public string yuepu;//最初的乐谱
-            public int[,] music_zan_0;//暂存乐谱0
+            /*public int[,] music_zan_0;//暂存乐谱0
             public int[,] music_zan_1;//暂存乐谱1
             public int[,] music_zan_2;//暂存乐谱2
             public int[] music_zan_3;//暂存乐谱3
             public byte[] music_zan_4;//暂存乐谱4
-            public bool[] stop;//和下一个音符间是否有连音线
+            public bool[] stop;//和下一个音符间是否有连音线*/
             public int time;//音轨时长几秒
-            public int stop_number;//几个连音线
-            public int note_number;//此声部的和弦最多有几个音符
+            //public int stop_number;//几个连音线
+            //public int note_number;//此声部的和弦最多有几个音符
             public int diaoshi;//此音轨的谱号
             public System.IO.BinaryWriter writer1;//保存单音轨的mid文件，可播放
             public System.IO.BinaryWriter writer2;//仅保存音轨数据，不可直接播放
@@ -204,6 +205,9 @@ namespace sanciyuandehundan_API
             {
                 writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流，文件
                 writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流，音轨
+                local_1 = Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid";
+                local_2 = Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid";
+
 
                 int l = 1;
                 Music_stream_file(writer1, ref l, ref note_long);//写入文件头
@@ -301,7 +305,7 @@ namespace sanciyuandehundan_API
                 writer2.Close();
             }
                 
-            private static void Music_stream_power(int i,Yingui yingui)
+            private static void Music_stream_power(int time,Yingui yingui)
             {
                 yingui.writer2.Write((byte)yingui.power_base);
                 //return (byte)Math.Sin(1);
@@ -386,7 +390,8 @@ namespace sanciyuandehundan_API
                 }
                 int note_ = note.Last()-'0';
                 //note_=note_*2
-                return (byte)((note_*2)+(highdown*12)+updown+base_C-2);
+                //return (byte)((note_*2)+(highdown*12)+updown+base_C-2);
+                return (byte)(dadaio[note_]+updown+highdown*12+base_C);
             }
         }
 
