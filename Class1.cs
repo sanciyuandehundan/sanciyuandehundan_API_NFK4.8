@@ -102,7 +102,8 @@ namespace sanciyuandehundan_API
 
     public class Midi
     {
-        private static byte[] dadaio = { 0, 0, 2, 4, 5, 7, 9, 11 };
+        private static byte[] dadaio_G = { 2, 2, 1, 2, 2, 2, 1 };
+        private static byte[] dadaio_F = { 0, 1, 3, 5, 7, 8, 10 };
         public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
         public static byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
         public static byte[] yingui_one = { 0x00, 0x00 };//文件定义，种类,单音轨
@@ -152,11 +153,13 @@ namespace sanciyuandehundan_API
             public int time;//音轨时长几秒
             //public int stop_number;//几个连音线
             //public int note_number;//此声部的和弦最多有几个音符
-            public int diaoshi;//此音轨的谱号
+            public int diaoshi;//此音轨是低音谱号还是高音谱号
+            public int diaoshi_updpwn=0;//此音轨的谱号有几个升+降-记号
+            public byte[] diaoshi_ = new byte[8];
             public System.IO.BinaryWriter writer1;//保存单音轨的mid文件，可播放
             public System.IO.BinaryWriter writer2;//仅保存音轨数据，不可直接播放
 
-            public Yingui(string sheet,int index,int instrument_,int pinlv,int note,int xiaojie_,int power_,int diaoshi)
+            public Yingui(string sheet,int index,int instrument_,int pinlv,int note,int xiaojie_,int power_,int diaoshi,int updown)
             {
                 /*instrument = instrument_;//乐器
 
@@ -194,7 +197,7 @@ namespace sanciyuandehundan_API
                 Music_note_base(note, xiaojie_, this);
                 Music_power(power_, sheet, this);
                 Music_instrument(instrument_, this);
-                Music_diaoshi(diaoshi,this);
+                Music_diaoshi(diaoshi,updown,this);
                 Yingui_parse();
             }
             public Yingui(int index)
@@ -269,8 +272,8 @@ namespace sanciyuandehundan_API
                         if (forindex_1 != pu2[i].Length - 1)
                         {
                             writer2.Write((byte)(0x90 + index));//格式
-                            writer2.Write(((byte)(Music_stream_note(p) + diaoshi)));//音高   
-                            Console.WriteLine("note:"+ (byte)(Music_stream_note(p) + diaoshi));
+                            writer2.Write((byte)Music_stream_note(p,this));//音高   
+                            Console.WriteLine("note:"+ (byte)Music_stream_note(p,this));
                             Music_stream_power(time, this);
                             forindex_1++;
                             if (forindex_1 != pu2[i].Length - 1)
@@ -286,7 +289,7 @@ namespace sanciyuandehundan_API
                         if (forindex_1 != pu2[i].Length - 1)
                         {
                             writer2.Write((byte)(0x80 + index));//格式
-                            writer2.Write(((byte)(Music_stream_note(p) + diaoshi)));//音高
+                            writer2.Write(((byte)Music_stream_note(p, this)));//音高
                             writer2.Write((byte)0);
                             //Music_stream_power(time, this);
                             forindex_1++;
@@ -364,7 +367,7 @@ namespace sanciyuandehundan_API
             /// </summary>
             /// <param name="note"></param>
             /// <returns></returns>
-            private static byte Music_stream_note(string note)
+            private static byte Music_stream_note(string note,Yingui yingui)
             {
                 //var biao =/ [0-9] g / ;
                 int highdown = 0;//低或高几个八度
@@ -391,7 +394,7 @@ namespace sanciyuandehundan_API
                 int note_ = note.Last()-'0';
                 //note_=note_*2
                 //return (byte)((note_*2)+(highdown*12)+updown+base_C-2);
-                return (byte)(dadaio[note_]+updown+highdown*12+base_C);
+                return (byte)(yingui.diaoshi_[note_-1] + updown + highdown * 12 + base_C + yingui.diaoshi);
             }
         }
 
@@ -535,9 +538,26 @@ namespace sanciyuandehundan_API
         /// </summary>
         /// <param name="diaoshi"></param>
         /// <param name="index"></param>
-        public static void Music_diaoshi(int diaoshi_, Yingui yingui)
+        public static void Music_diaoshi(int diaoshi_,int updown, Yingui yingui)
         {
+            byte[] zan2=new byte[7];
             yingui.diaoshi = diaoshi_;
+            yingui.diaoshi_updpwn = updown;
+            int zan1 = (diaoshi_+updown) % 7;
+            if (zan1 < 0) zan1 *= -1;
+            for(int i = 0; i < 7; i++)
+            {
+                if (i + zan1 < 7) zan2[i] = Midi.dadaio_G[i + zan1];
+                else zan2[i] = Midi.dadaio_G[i + zan1 - 7];
+            }
+            for(int i = 0;i < 7; i++)
+            {
+                Console.WriteLine(yingui.diaoshi_[i]);
+                for(int k = 0; k < i+1; k++)
+                {
+                    yingui.diaoshi_[i + 1] += zan2[k];
+                }
+            }
         }
 
         /// <summary>
