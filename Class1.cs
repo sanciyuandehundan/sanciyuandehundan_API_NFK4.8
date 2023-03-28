@@ -232,15 +232,15 @@ namespace sanciyuandehundan_API
                 int forindex_2 = 0;
                 int time = 0;
                 double time_end = 0.1;
-
+                int time_stop=0;
                 for (int i = 0; i < pu1.Length; i++)
                 {
-                    time = Music_stream_time(pu2[i].Last(), this);
-                    time_end = 0.1;
-                    if (pu2[i].First().Equals("k"))
+                    if (pu2[i][0].Equals("k"))
                     {
                         continue;
                     }//跳过
+                    time = Music_stream_time(pu2[i].Last(), this);
+                    time_end = 0.1;
                     if (i < pu2.GetLength(0) - 1)
                     {
                         if (pu2[i + 1][0].Equals("0"))
@@ -248,17 +248,18 @@ namespace sanciyuandehundan_API
                             forindex_2 = i + 1;
                             do
                             {
-                                time += Music_stream_time(pu2[forindex_2][1], this);
-                                pu2[i][0] = "k";
+                                time_stop += Music_stream_time(pu2[forindex_2][1], this);
+                                pu2[forindex_2][0] = "k";
                                 forindex_2++;
+                                if (forindex_2 >= pu1.Length) break;
                             } while (pu2[forindex_2][0].Equals("0"));//多个休止符
-
                         }//如果下一个是休止符
-                        else if (pu2[i + 1][0].Equals("-"))
+                        else if (pu2[i + 1][0].Equals("-") & pu2[i+1].GetLength(0)==1)
                         {
                             if (pu2[i + 2][0].Equals(pu2[i][0]))
                             {
                                 time = Music_stream_time(pu2[i + 2].Last(), this);
+                                pu2[i + 1][0] = "k";
                                 pu2[i + 2][0] = "k";
                             }//如果连音线连接的是两相同音符
                             else
@@ -273,8 +274,8 @@ namespace sanciyuandehundan_API
                         if (forindex_1 != pu2[i].Length - 1)
                         {
                             writer2.Write((byte)(0x90 + index));//格式
-                            writer2.Write((byte)Music_stream_note(p,this));//音高   
-                            Console.WriteLine("note:"+ (byte)Music_stream_note(p,this));
+                            writer2.Write((byte)Music_stream_note(p, this));//音高   
+                            Console.WriteLine("note:" + (byte)Music_stream_note(p, this));
                             Music_stream_power(time, this);
                             forindex_1++;
                             if (forindex_1 != pu2[i].Length - 1)
@@ -300,8 +301,9 @@ namespace sanciyuandehundan_API
                             }//如果下一个指向的还是音符
                         }
                     }//放开
-                    if (i != pu1.Length - 1) Music_stream_time((int)(time * time_end), writer2);//分割——————————————————————————
+                    /*if (i != pu1.Length - 1)*/ Music_stream_time((int)(time * time_end+time_stop), writer2);//分割——————————————————————————
                 }//音轨
+                if (pu2.Last()[0] != "k") Yingui.Music_stream_time(note_long, writer2);//结尾间隔
                 Music_stream_end(writer2, this);
                 writer2.Seek(0, SeekOrigin.Begin);
                 writer2.BaseStream.CopyTo(writer1.BaseStream);
@@ -373,7 +375,6 @@ namespace sanciyuandehundan_API
                 //var biao =/ [0-9] g / ;
                 int highdown = 0;//低或高几个八度
                 int updown = 0;
-                byte diaohao_effect=0;
                 foreach(char a in note)
                 {
                     if (a == '-')
@@ -394,21 +395,13 @@ namespace sanciyuandehundan_API
                     }//升记号
                 }
                 int note_ = note.Last()-'0';
-                for(int i = 0; i < yingui.diaoshi_updpwn; i++)
-                {
-                    if (note_ == dadaio_updown[i])
-                    {
-                        diaohao_effect = 1;
-                        break;
-                    }
-                }
                 /*Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi_effect:"+diaohao_effect);
                 Console.Write("dadaio[note_]:" + dadaio[note_]);
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);*/
-                return (byte)(base_C + yingui.diaoshi + diaohao_effect + yingui.diaoshi_[note_] + highdown * 12 + updown);
+                return (byte)(base_C + yingui.diaoshi +  yingui.diaoshi_[note_] + highdown * 12 + updown);
                 //note_=note_*2
                 //return (byte)((note_*2)+(highdown*12)+updown+base_C-2);
                 //return (byte)(yingui.diaoshi_[note_-1] + updown + highdown * 12 + base_C + yingui.diaoshi);
@@ -557,27 +550,41 @@ namespace sanciyuandehundan_API
         /// <param name="index"></param>
         public static void Music_diaoshi(int diaoshi_,int updown, Yingui yingui)
         {
-            byte[] zan2=new byte[8];
+            updown *= 4;
+            updown %= 7;
+            byte[] zan2=new byte[7];
             zan2[0] = 0;
             yingui.diaoshi = diaoshi_;
             yingui.diaoshi_updpwn = updown;
 
             int zan1 = (diaoshi_+updown) % 7;
             if (zan1 < 0) zan1 *= -1;
-            /*for(int i = 0; i < 7; i++)
+            for(int i = 0; i < 7; i++)
             {
-                if (i + zan1 < 7) zan2[i + 1] = Midi.dadaio[i + zan1];
-                else zan2[i + 1] = Midi.dadaio[i + 1 + zan1 - 7];
-                Console.WriteLine(zan2[i+1]);
+                if (i + zan1-1 < 7)
+                {
+                    zan2[i] = dadaio[i + zan1-1];
+                }
             }
             for(int i = 0;i < 7; i++)
             {
-                //Console.WriteLine(yingui.diaoshi_[i]);
-                for(int k = 0; k < i+1; k++)
+                if(i + zan1 < 7)
                 {
-                    yingui.diaoshi_[i + 1] += zan2[k];
+                zan2[i + zan1] = dadaio[i];
                 }
-            }*/
+
+            }
+            for(int i = 1; i < 8; i++)
+            {
+                for(int j = 0;j < i-1; j++)
+                {
+                    yingui.diaoshi_[i] += zan2[j];
+                }
+            }
+            foreach(byte b in yingui.diaoshi_)
+            {
+                Console.WriteLine(b);
+            }
         }//低音E、高音C
 
         /// <summary>
@@ -680,7 +687,7 @@ namespace sanciyuandehundan_API
         /// <param name="writer"></param>
         private static void Music_stream_end(BinaryWriter writer,Yingui yingui)
         {
-            Yingui.Music_stream_time(yingui.note_long,writer);//结尾间隔
+            //Yingui.Music_stream_time(yingui.note_long,writer);//结尾间隔
             writer.Write(yingui_end);
             writer.Seek(7, SeekOrigin.Begin);//到之前预留的空位
             writer.Write((byte)(writer.BaseStream.Length - 8));//写入音轨长度
