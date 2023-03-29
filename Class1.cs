@@ -111,8 +111,8 @@ namespace sanciyuandehundan_API
         public static byte[] yingui_diaohao = { 0xff, 0x59, 0x02 };//调号头
         public static byte[] yingui_jiepai = { 0xff, 0x58, 0x04 };//节拍头
         public static byte[] yingui_speed = { 0xff, 0x51, 0x03 };//速度头
-        public const float power_chang_up=1.28F;
-        public const float power_chang_down=0.87F;
+        public const float power_chang_up=1.1F;
+        public const float power_chang_down=0.9F;
         public const int base_C=60;
         public static char[] split = { '/', ',' };//分割格式
         /// <summary>
@@ -269,6 +269,7 @@ namespace sanciyuandehundan_API
                 int time = 0;
                 double time_end = 0.1;
                 int time_stop = 0;
+                bool endstop=false;
                 for (int i = 0; i < pu1.Length; i++)
                 {
                     if (pu2[i][0].Equals("k"))
@@ -287,7 +288,11 @@ namespace sanciyuandehundan_API
                                 time_stop += Music_stream_time(pu2[forindex_2][1], this);
                                 pu2[forindex_2][0] = "k";
                                 forindex_2++;
-                                if (forindex_2 >= pu1.Length) break;
+                                if (forindex_2 >= pu1.Length)
+                                {
+                                    endstop = true;
+                                    break;
+                                }
                             } while (pu2[forindex_2][0].Equals("0"));//多个休止符
                         }//如果下一个是休止符
                         else if (pu2[i + 1][0].Equals("-") & pu2[i + 1].GetLength(0) == 1)
@@ -338,9 +343,9 @@ namespace sanciyuandehundan_API
                         }
                     }//放开
                     //Console.WriteLine(pu2[i][0]);
-                    if (i != pu1.Length - 1 | !(pu2.Last()[0].Equals("k") & 1 == pu1.Length)) Music_stream_time((int)(time * time_end + time_stop), writer2);//分割——————————————————————————
+                    if (i != pu1.Length - 1|endstop) Music_stream_time((int)(time * time_end + time_stop), writer2);//分割——————————————————————————
                 }//音轨
-                //if (pu2.Last()[0] != "k") Yingui.Music_stream_time(note_long, writer2);//结尾间隔
+                if (!endstop) Music_stream_time(xiaojie_note_long, writer2);//结尾间隔
                 Music_stream_end(writer2, this);
                 writer2.Seek(0, SeekOrigin.Begin);
                 writer2.BaseStream.CopyTo(writer1.BaseStream);
@@ -760,7 +765,7 @@ namespace sanciyuandehundan_API
         /// <param name="writer"></param>
         private static void Music_stream_end(BinaryWriter writer,Yingui yingui)
         {
-            //Yingui.Music_stream_time(yingui.note_long,writer);//结尾间隔
+            //Yingui.Music_stream_time(yingui.xiaojie_note_long, writer);//结尾间隔
             writer.Write(yingui_end);
             writer.Seek(7, SeekOrigin.Begin);//到之前预留的空位
             writer.Write((byte)(writer.BaseStream.Length - 8));//写入音轨长度
