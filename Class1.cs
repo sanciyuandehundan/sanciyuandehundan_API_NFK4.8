@@ -264,6 +264,18 @@ namespace sanciyuandehundan_API
                     forindex_0++;
                 }//分割为一个一个音高和长度
 
+                int forindex_3 = 0;
+                int start_stop = 0;
+                if (pu2[0][0] == "0")
+                {
+                    do
+                    {
+                        start_stop += Music_stream_time(pu2[forindex_3][1], this);
+                        pu2[forindex_3][0] = "k";
+                        forindex_3++;
+                    } while (pu2[forindex_3][0].Equals("0"));//多个休止符
+                }
+                Music_stream_time(start_stop, writer2);//开头间隔
                 int forindex_1 = 0;
                 int forindex_2 = 0;
                 int time = 0;
@@ -512,7 +524,9 @@ namespace sanciyuandehundan_API
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);*/
-                return (byte)(base_C + yingui.diaoshi + yingui.diaoshi_anchored[note_] + highdown * 12 + updown);
+                byte note_out= (byte)(base_C + yingui.diaoshi + yingui.diaoshi_anchored[note_] + highdown * 12 + updown);
+                Console.WriteLine("note:" + note_out);
+                return note_out;
                 //note_=note_*2
                 //return (byte)((note_*2)+(highdown*12)+updown+base_C-2);
                 //return (byte)(yingui.diaoshi_[note_-1] + updown + highdown * 12 + base_C + yingui.diaoshi);
@@ -639,16 +653,16 @@ namespace sanciyuandehundan_API
             if (zan1 < 0) zan1 *= -1;
             for(int i = 0; i < 7; i++)
             {
-                if (i + zan1-1 < 7)
+                if (i + zan1 - 1 < 7 & i + zan1 - 1 > 0)
                 {
-                    zan2[i] = dadaio[i + zan1-1];
+                    zan2[i] = dadaio[i + zan1 - 1];
                 }
             }
             for(int i = 0;i < 7; i++)
             {
-                if(i + zan1 < 7)
+                if (i + zan1 < 7 & i + zan1 - 1 > 0)
                 {
-                zan2[i + zan1] = dadaio[i];
+                    zan2[i + zan1] = dadaio[i];
                 }
 
             }
@@ -798,7 +812,7 @@ namespace sanciyuandehundan_API
             writer.Write((byte)0x00);//分隔
             writer.Write((byte)(0xc0 + yingui.index));//乐器
             writer.Write((byte)yingui.instrument);//乐器
-            writer.Write((byte)0x00);//分隔
+            //writer.Write((byte)0x00);//开头分隔
             //该音轨信息
         }
 
