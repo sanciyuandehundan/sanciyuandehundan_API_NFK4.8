@@ -102,6 +102,9 @@ namespace sanciyuandehundan_API
 
     public class Midi
     {
+        [DllImport("sanciyuandehundan_API_Cpp.dll", CharSet = CharSet.Unicode, EntryPoint = "mci_play", CallingConvention = CallingConvention.Cdecl)]
+        public static extern uint mci_play(string order);
+
         private static readonly byte[] dadaio = { 2, 2, 1, 2, 2, 2, 1 };
         public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
         public static byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
@@ -115,10 +118,6 @@ namespace sanciyuandehundan_API
         public const float power_chang_down=0.9F;
         public const int base_C=60;
         public static char[] split = { '/', ',' };//分割格式
-        /// <summary>
-        /// midi设备的句柄
-        /// </summary>
-        public int midiOut;
         public class Yingui
         {
             public string help =
@@ -129,8 +128,18 @@ namespace sanciyuandehundan_API
                 "power，力度或理解为音量，范围：0~127\n" +
                 "diaoshi，音程比C大调低或高多少\n";
 
-            public string local_1;//.mid 文件地址，可播放
-            internal string local_2;//.mid 文件地址，不可播放
+            /// <summary>
+            /// 该音轨的.mid文件地址
+            /// </summary>
+            public string local_1;
+            /// <summary>
+            /// 该音轨的暂存地址，不可播放
+            /// </summary>
+            internal string local_2;
+            /// <summary>
+            /// 该音轨在mci设备中的名字
+            /// </summary>
+            private string mci_name;
             /// <summary>
             /// 该音轨在midi设备中的通道0~15
             /// </summary>
@@ -176,7 +185,7 @@ namespace sanciyuandehundan_API
             /// </summary>
             public int time;
             /// <summary>
-            /// 该音轨的谱号
+            /// 该音轨的谱号,高音谱0，低音谱-20
             /// </summary>
             public int diaoshi;
             /// <summary>
@@ -229,6 +238,7 @@ namespace sanciyuandehundan_API
                 power = new int[sheet.Split('|').Length];
                 power_base = power_;*/
                 this.index = index;
+                mci_name = "yingui_" + index.ToString();
                 yuepu = sheet;
                 Music_speed(pinlv, this);
                 Music_note_base(note, xiaojie_, this);
@@ -275,7 +285,7 @@ namespace sanciyuandehundan_API
                         forindex_3++;
                     } while (pu2[forindex_3][0].Equals("0"));//多个休止符
                 }
-                Music_stream_time(start_stop, writer2);//开头间隔
+                Music_stream_time(start_stop, this);//开头间隔
                 int forindex_1 = 0;
                 int forindex_2 = 0;
                 int time = 0;
@@ -311,7 +321,7 @@ namespace sanciyuandehundan_API
                         {
                             if (pu2[i + 2][0].Equals(pu2[i][0]))
                             {
-                                time = Music_stream_time(pu2[i + 2].Last(), this);
+                                time += Music_stream_time(pu2[i + 2].Last(), this);
                                 pu2[i + 1][0] = "k";
                                 pu2[i + 2][0] = "k";
                             }//如果连音线连接的是两相同音符
@@ -337,7 +347,7 @@ namespace sanciyuandehundan_API
                             }//如果下一个指向的还是音符
                         }
                     }//按下
-                    Music_stream_time((int)(time * (1 - time_end)), writer2);//分割———————————————————————————————————
+                    Music_stream_time((int)(time * (1 - time_end)), this);//分割———————————————————————————————————
                     forindex_1 = 0;
                     foreach (string p in pu2[i])
                     {
@@ -355,9 +365,11 @@ namespace sanciyuandehundan_API
                         }
                     }//放开
                     //Console.WriteLine(pu2[i][0]);
-                    if (i != pu1.Length - 1|endstop) Music_stream_time((int)(time * time_end + time_stop), writer2);//分割——————————————————————————
+                    if (i != pu1.Length - 1|endstop) Music_stream_time((int)(time * time_end + time_stop), this);//分割——————————————————————————
+                    time_stop = 0;
+                    time = 0;
                 }//音轨
-                if (!endstop) Music_stream_time(xiaojie_note_long, writer2);//结尾间隔
+                if (!endstop) Music_stream_time(xiaojie_note_long, this);//结尾间隔
                 Music_stream_end(writer2, this);
                 writer2.Seek(0, SeekOrigin.Begin);
                 writer2.BaseStream.CopyTo(writer1.BaseStream);
@@ -367,6 +379,47 @@ namespace sanciyuandehundan_API
 
             internal static int power_time;
             internal static byte power_zan;
+
+            /// <summary>
+            /// 打开文件
+            /// </summary>
+            public void Yingui_open()
+            {
+                Console.WriteLine("open: "+mci_play("open " + local_1 + " type sequencer Alias " + mci_name));
+            }
+
+            /// <summary>
+            /// 播放
+            /// </summary>
+            public void Yingui_play()
+            {
+                Console.WriteLine("play: "+mci_play("play " + mci_name));
+            }
+
+            /// <summary>
+            /// 关闭文件
+            /// </summary>
+            public void Yingui_close()
+            {
+                Console.WriteLine("close: "+mci_play("close " + mci_name));
+            }
+
+            /// <summary>
+            /// 暂停播放
+            /// </summary>
+            public void Yingui_pause()
+            {
+                Console.WriteLine("pause: "+mci_play("pause "+mci_name));
+            }
+
+            /// <summary>
+            /// 继续播放
+            /// </summary>
+            public void Yingui_resume()
+            {
+                Console.WriteLine("resume: "+mci_play("play " + mci_name));
+            }
+
             /// <summary>
             /// 写入力度
             /// </summary>
@@ -472,20 +525,21 @@ namespace sanciyuandehundan_API
             /// 写入时间
             /// </summary>
             /// <param name="i"></param>
-            internal static void Music_stream_time(int i, BinaryWriter writer)
+            internal static void Music_stream_time(int i, Yingui yingui)
             {
+                yingui.time += i;
                 //Console.Write("time:"+i);
                 if (i > 16383)
                 {
-                    writer.Write((byte)((1 << 7) + (i >> 14)));
+                    yingui.writer2.Write((byte)((1 << 7) + (i >> 14)));
                     //Console.Write(" t3:" + (byte)((1 << 7) + (i >> 14)));
                 }
                 if (i > 127)
                 {
-                    writer.Write((byte)((1 << 7) + (i >> 7)));
+                    yingui.writer2.Write((byte)((1 << 7) + (i >> 7)));
                     //Console.Write(" t2:" + (byte)((1 << 7) + (i >> 7)));
                 }
-                writer.Write((byte)(((byte)(i << 1)) >> 1));
+                yingui.writer2.Write((byte)(((byte)(i << 1)) >> 1));
                 //Console.WriteLine(" t1:" + (byte)(((byte)(i << 1)) >> 1));
             }
 
@@ -525,7 +579,7 @@ namespace sanciyuandehundan_API
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);*/
-                byte note_out= (byte)(base_C + yingui.diaoshi + yingui.diaoshi_anchored[note_] + highdown * 12 + updown);
+                byte note_out= (byte)(base_C + yingui.diaoshi + yingui.diaoshi_anchored[note_-1] + highdown * 12 + updown);
                 Console.WriteLine("note:" + note_out);
                 return note_out;
                 //note_=note_*2
@@ -534,43 +588,20 @@ namespace sanciyuandehundan_API
             }
         }
 
-        /// <summary>
-        /// 跟midi设备建立链接
-        /// </summary>
-        /// <param name="lphMidiOut"></param>
-        /// <param name="uDeviceID"></param>
-        /// <param name="dwCallback"></param>
-        /// <param name="dwInstance"></param>
-        /// <param name="dwFlags"></param>
-        /// <returns></returns>
-        [DllImport("winmm.dll")]
-        private extern static int midiOutOpen(out int lphMidiOut, int uDeviceID, int dwCallback, int dwInstance, int dwFlags);
-
-        /// <summary>
-        /// 跟midi设备切断链接
-        /// </summary>
-        /// <param name="lphMidiOut"></param>
-        /// <returns></returns>
-        [DllImport("winmm.dll")]
-        private extern static int midiOutClose(int lphMidiOut);
-
-        //[DllImport("sanciyuandehundan_API_Cpp.dll", EntryPoint = "midi_play", CallingConvention = CallingConvention.Cdecl)]
-        //public static extern void midi_play(/*int[] yuepu,int midiout*/);
-
         public Midi()
         {
-            if (midiOutOpen(out midiOut, -1, 0, 0, 0) != 0)
+            /*if (midiOutOpen(out midiOut, -1, 0, 0, 0) != 0)
             {
                 MessageBox.Show("無法打開MIDI設備");
-            }
+            }*/
             //midiOutShortMsg(midiOut, 0x7e << 16 | 60 << 8 | 0x90);
         }
         ~Midi()
         {
-            if (midiOut != 0)
+            /*if (midiOut != 0)
             {
                 midiOutClose(midiOut);
-            }
+            }*/
         }
 
         /// <summary>
@@ -644,7 +675,7 @@ namespace sanciyuandehundan_API
         public static void Music_diaoshi(int diaoshi_,int updown, Yingui yingui)
         {
             updown *= 4;
-            updown %= 7;
+            //updown %= 7;
             byte[] zan2=new byte[7];
             zan2[0] = 0;
             yingui.diaoshi = diaoshi_;
@@ -652,77 +683,36 @@ namespace sanciyuandehundan_API
 
             int zan1 = (diaoshi_+updown) % 7;
             if (zan1 < 0) zan1 *= -1;
-            for(int i = 0; i < 7; i++)
-            {
-                if (i + zan1 - 1 < 7 & i + zan1 - 1 > 0)
-                {
-                    zan2[i] = dadaio[i + zan1 - 1];
-                }
-            }
-            for(int i = 0;i < 7; i++)
-            {
-                if (i + zan1 < 7 & i + zan1 - 1 > 0)
-                {
-                    zan2[i + zan1] = dadaio[i];
-                }
 
-            }
-            for(int i = 1; i < 8; i++)
+            byte[] diao1 = new byte[zan1];
+            byte[] diao2 = new byte[7-zan1];
+
+            for(int i = 7 - zan1; i < 7; i++)
             {
-                for(int j = 0;j < i-1; j++)
-                {
-                    yingui.diaoshi_anchored[i] += zan2[j];
-                }
+                diao1[i - 7 + zan1] = dadaio[i];
             }
-            foreach(byte b in yingui.diaoshi_anchored)
+            for(int i = 0;i < 7-zan1; i++)
             {
-                Console.WriteLine(b);
+                diao2[i]= dadaio[i];
             }
+            diao1.CopyTo(zan2, 0);
+            diao2.CopyTo(zan2, zan1);
+            zan2.CopyTo(yingui.diaoshi_anchored, 1);
+            foreach (byte b in zan2)Console.WriteLine(b);
+            if (zan2.Last() == 2) yingui.diaoshi_anchored[0] = 1;
+            for (int i = 1; i < 8; i++)
+            {
+                yingui.diaoshi_anchored[i] += yingui.diaoshi_anchored[i - 1];
+            }
+            Console.WriteLine("______________");
+            foreach (byte b in yingui.diaoshi_anchored) Console.WriteLine(b);
         }//低音E、高音C
-
-        /// <summary>
-        /// 演奏音乐
-        /// </summary>
-        /// <param name="music">
-        /// 谱子
-        /// </param>
-        public void Music_play(int index)//利用midioutlongmsg,或者shortmsg
-        {
-            
-        }
 
         public static void Music_parse_hebin(int num,int note_long) {
             BinaryReader reader;
             BinaryWriter allwriter = new BinaryWriter(new FileStream(Environment.CurrentDirectory+"\\yingui_all.mid", FileMode.Create));
-
-            /*allwriter.Write(yingui_start_file);//写入文件定义
-            allwriter.Write(yingui_many);//写入文件定义,文件类型
-            allwriter.Write((byte)0); //音轨数量
-            allwriter.Write((byte)(num+1));//写入文件定义，音轨数量
-            allwriter.Write((byte)(note_long >> 8));//如果大于7位
-            allwriter.Write((byte)note_long);//一个四分音符几tick
-            //该文件信息*/
             Music_stream_file(allwriter, ref num, ref note_long);
-
-            /*allwriter.Write(yingui_start);//写入音轨头
-            allwriter.Write((short)0); //音轨长度
-            allwriter.Write((byte)0); //音轨长度
-            allwriter.Write((byte)0x4);//写入音轨长度
-            allwriter.Write((byte)0x00);//分隔
-            //allwriter.Write(yingui_diaohao);//调号头
-            //allwriter.Write((byte)diaoshi);//调号
-            //allwriter.Write((byte)0x00);//调号,大调还是小调
-            //allwriter.Write((byte)0x00);//分隔
-            //allwriter.Write(yingui_jiepai);//节拍头
-            //allwriter.Write((byte)xiaojie[0]);//一小节几拍
-            //allwriter.Write((byte)(1 / note_base[0]));//一拍是几分音符
-            //allwriter.Write((byte)0x18);//节拍器时钟
-            allwriter.Write((byte)0x08);//一四分音符几个32分音符
-            allwriter.Write((byte)0x00);//分隔
-            allwriter.Write(yingui_end);//写入音轨尾
-            //全局音轨*/
             Music_stream_global(allwriter);
-
             for (int i=0;i<num;i++)
             {
                 reader = new BinaryReader(new FileStream(Environment.CurrentDirectory + "\\yingui" + i.ToString() + "_2.mid",FileMode.Open));
