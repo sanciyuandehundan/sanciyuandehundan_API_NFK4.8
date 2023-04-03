@@ -383,18 +383,18 @@ namespace sanciyuandehundan_API
                     {
                         if (i == 0)
                         {
-                            Console.WriteLine(power_time + " " + yingui.xiaojie_tempo_split_anchored[i] * yingui.xiaojie_note_long + " " + (yingui.xiaojie_tempo_split_anchored[i] + 1) * yingui.xiaojie_note_long);
+                            //Console.WriteLine(power_time + " " + yingui.xiaojie_tempo_split_anchored[i] * yingui.xiaojie_note_long + " " + (yingui.xiaojie_tempo_split_anchored[i] + 1) * yingui.xiaojie_note_long);
                             //yingui.writer2.Write((byte)(yingui.power_base * power_chang_up));//强
                             power_zan = (byte)(yingui.power_base * power_chang_up);//强
-                            Console.WriteLine("1");
+                            //Console.WriteLine("1");
                             break;
                         }
                         else
                         {
-                            Console.WriteLine(power_time + " " + yingui.xiaojie_tempo_split_anchored[i] * yingui.xiaojie_note_long + " " + (yingui.xiaojie_tempo_split_anchored[i] + 1) * yingui.xiaojie_note_long);
+                            //Console.WriteLine(power_time + " " + yingui.xiaojie_tempo_split_anchored[i] * yingui.xiaojie_note_long + " " + (yingui.xiaojie_tempo_split_anchored[i] + 1) * yingui.xiaojie_note_long);
                             //yingui.writer2.Write(((byte)yingui.power_base));//次强
                             power_zan = (byte)yingui.power_base;
-                            Console.WriteLine("0");
+                            //Console.WriteLine("0");
                             break;
                         }
                     }
@@ -464,6 +464,7 @@ namespace sanciyuandehundan_API
                 time = int.Parse(time_);
                 time = (1 / yingui.xiaojie_note_base) / time * yingui.xiaojie_note_long;//计算无附点的长度
                 time *= Math.Pow(1.5, point);//计算附点
+                Console.WriteLine(time);
                 return ((int)time);
             }
 
