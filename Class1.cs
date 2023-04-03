@@ -99,12 +99,12 @@ namespace sanciyuandehundan_API
             }
         }//计算屏幕比例
     }
-
     public class Midi
     {
         [DllImport("sanciyuandehundan_API_Cpp.dll", CharSet = CharSet.Unicode, EntryPoint = "mci_play", CallingConvention = CallingConvention.Cdecl)]
         public static extern uint mci_play(string order);
 
+        public static string local_all;
         private static readonly byte[] dadaio = { 2, 2, 1, 2, 2, 2, 1 };
         public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
         public static byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
@@ -135,7 +135,7 @@ namespace sanciyuandehundan_API
             /// <summary>
             /// 该音轨的暂存地址，不可播放
             /// </summary>
-            internal string local_2;
+            public string local_2;
             /// <summary>
             /// 该音轨在mci设备中的名字
             /// </summary>
@@ -253,14 +253,15 @@ namespace sanciyuandehundan_API
             }
             public void Yingui_parse()
             {
+                Yingui_close();
                 writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流，文件
                 writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流，音轨
                 local_1 = Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid";
                 local_2 = Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid";
 
 
-                int l = 1;
-                Music_stream_file(writer1, ref l, ref xiaojie_note_long);//写入文件头
+
+                Music_stream_file(writer1, 1);//写入文件头
                 Music_stream_global(writer1);//写入全局音轨
                 Music_stream_start(writer2, this);//写入音轨头
 
@@ -598,6 +599,7 @@ namespace sanciyuandehundan_API
         }
         ~Midi()
         {
+            Music_close_all();
             /*if (midiOut != 0)
             {
                 midiOutClose(midiOut);
@@ -708,18 +710,19 @@ namespace sanciyuandehundan_API
             foreach (byte b in yingui.diaoshi_anchored) Console.WriteLine(b);
         }//低音E、高音C
 
-        public static void Music_parse_hebin(int num,int note_long) {
+        public static void Music_parse_hebin(string[] paths,int note_long) {
             BinaryReader reader;
             BinaryWriter allwriter = new BinaryWriter(new FileStream(Environment.CurrentDirectory+"\\yingui_all.mid", FileMode.Create));
-            Music_stream_file(allwriter, ref num, ref note_long);
+            Music_stream_file(allwriter, paths.Length);
             Music_stream_global(allwriter);
-            for (int i=0;i<num;i++)
+            for (int i=0;i<paths.Length;i++)
             {
-                reader = new BinaryReader(new FileStream(Environment.CurrentDirectory + "\\yingui" + i.ToString() + "_2.mid",FileMode.Open));
+                reader = new BinaryReader(new FileStream(paths[i],FileMode.Open));
                 reader.BaseStream.CopyTo(allwriter.BaseStream);
                 allwriter.Seek(0, SeekOrigin.End);
                 reader.Close();
             }//读取音轨的暂存文件,
+            local_all = Environment.CurrentDirectory + "\\yingui_all.mid";
             allwriter.Close();
             
         }//将多音轨合成成一文件，Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid"
@@ -736,14 +739,14 @@ namespace sanciyuandehundan_API
         /// <param name="note_long">
         /// 一个四分音符多长
         /// </param>
-        private static void Music_stream_file(BinaryWriter writer,ref int num,ref int note_long)
+        private static void Music_stream_file(BinaryWriter writer,int num)
         {
             writer.Write(yingui_start_file);//写入文件定义
             writer.Write(yingui_many);//写入文件定义,文件类型
             writer.Write((byte)0); //音轨数量
             writer.Write((byte)(num + 1));//写入文件定义，音轨数量
-            writer.Write((byte)(note_long >> 8));//如果大于7位
-            writer.Write((byte)note_long);//一个四分音符几tick
+            writer.Write((byte)0x01);//如果大于7位
+            writer.Write((byte)0xe0);//一个四分音符几tick
             //该文件信息
         }
 
@@ -807,8 +810,46 @@ namespace sanciyuandehundan_API
             //该音轨信息
         }
 
+        /// <summary>
+        /// 打开文件
+        /// </summary>
+        public static void Music_open_all()
+        {
+            Console.WriteLine("open_all: " + mci_play("open " + local_all + " type sequencer Alias yingui_all"));
+        }
 
-        
+        /// <summary>
+        /// 播放
+        /// </summary>
+        public static void Music_play_all()
+        {
+            Console.WriteLine("play_all: " + mci_play("play yingui_all"));
+        }
+
+        /// <summary>
+        /// 关闭文件
+        /// </summary>
+        public static void Music_close_all()
+        {
+            Console.WriteLine("close_all: " + mci_play("close yingui_all"));
+        }
+
+        /// <summary>
+        /// 暂停播放
+        /// </summary>
+        public static void Music_pause_all()
+        {
+            Console.WriteLine("pause_all: " + mci_play("pause yingui_all"));
+        }
+
+        /// <summary>
+        /// 继续播放
+        /// </summary>
+        public static void Music_resume_all()
+        {
+            Console.WriteLine("resume_all: " + mci_play("play yingui_all"));
+        }
+
 
         public int[,] p = new int[10, 2]
         {
@@ -1523,6 +1564,5 @@ int main()
 }
  */
     }
-
 }
 
