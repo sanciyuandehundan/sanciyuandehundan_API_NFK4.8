@@ -105,7 +105,8 @@ namespace sanciyuandehundan_API
         public static extern uint mci_play(string order);
 
         public static string local_all;
-        private static readonly byte[] dadaio = { 2, 2, 1, 2, 2, 2, 1 };
+        private static readonly byte[] dadaio_G = { 2, 2, 1, 2, 2, 2, 1 };
+        private static readonly byte[] dadaio_F = { 1, 2, 2, 2, 1, 2, 2 };
         public static byte[] yingui_start_file = { 0x4d, 0x54, 0x68, 0x64, 0x00, 0x00, 0x00, 0x06 };//文件定义,要加上种类、音轨数、四分音符长度
         public static byte[] yingui_start = { 0x4d, 0x54, 0x72, 0x6b };//音轨头
         public static byte[] yingui_one = { 0x00, 0x00 };//文件定义，种类,单音轨
@@ -674,34 +675,38 @@ namespace sanciyuandehundan_API
         /// </summary>
         /// <param name="diaoshi"></param>
         /// <param name="index"></param>
-        public static void Music_diaoshi(int diaoshi_,int updown, Yingui yingui)
+        public static void Music_diaoshi(int diaoshi_, int updown, Yingui yingui)
         {
             updown *= 4;
             //updown %= 7;
-            byte[] zan2=new byte[7];
+            byte[] zan2 = new byte[7];
             zan2[0] = 0;
             yingui.diaoshi = diaoshi_;
             yingui.diaoshi_updpwn = updown;
 
-            int zan1 = (diaoshi_+updown) % 7;
+            int zan1 = updown % 7;
             if (zan1 < 0) zan1 *= -1;
 
             byte[] diao1 = new byte[zan1];
-            byte[] diao2 = new byte[7-zan1];
+            byte[] diao2 = new byte[7 - zan1];
 
-            for(int i = 7 - zan1; i < 7; i++)
+            for (int i = 7 - zan1; i < 7; i++)
             {
-                diao1[i - 7 + zan1] = dadaio[i];
+                if (diaoshi_ == 0) diao1[i - 7 + zan1] = dadaio_G[i];
+                if (diaoshi_ == -20) diao1[i - 7 + zan1] = dadaio_F[i];
             }
-            for(int i = 0;i < 7-zan1; i++)
+            for (int i = 0; i < 7 - zan1; i++)
             {
-                diao2[i]= dadaio[i];
+                if (diaoshi_ == 0) diao2[i] = dadaio_G[i];
+                if (diaoshi_ == -20) diao2[i] = dadaio_F[i];
             }
             diao1.CopyTo(zan2, 0);
             diao2.CopyTo(zan2, zan1);
             zan2.CopyTo(yingui.diaoshi_anchored, 1);
-            foreach (byte b in zan2)Console.WriteLine(b);
-            if (zan2.Last() == 2) yingui.diaoshi_anchored[0] = 1;
+            foreach (byte b in diao1) Console.WriteLine("d1:" + b);
+            foreach (byte b in diao2) Console.WriteLine("d2:" + b);
+            foreach (byte b in zan2) Console.WriteLine("z2:" + b);
+            if (zan2.Last() == 2&diaoshi_!=-20) yingui.diaoshi_anchored[0] = 1;
             for (int i = 1; i < 8; i++)
             {
                 yingui.diaoshi_anchored[i] += yingui.diaoshi_anchored[i - 1];
