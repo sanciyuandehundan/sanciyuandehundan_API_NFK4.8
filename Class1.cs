@@ -291,7 +291,7 @@ namespace sanciyuandehundan_API
                 int forindex_1 = 0;
                 int forindex_2 = 0;
                 int time = 0;
-                double time_end = 0.1;
+                double time_end = 0.05;
                 int time_stop = 0;
                 bool endstop=false;
                 for (int i = 0; i < pu1.Length; i++)
