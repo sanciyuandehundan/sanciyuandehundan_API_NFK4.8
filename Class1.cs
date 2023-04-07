@@ -115,8 +115,8 @@ namespace sanciyuandehundan_API
         public static byte[] yingui_diaohao = { 0xff, 0x59, 0x02 };//调号头
         public static byte[] yingui_jiepai = { 0xff, 0x58, 0x04 };//节拍头
         public static byte[] yingui_speed = { 0xff, 0x51, 0x03 };//速度头
-        public const float power_chang_up=1.1F;
-        public const float power_chang_down=0.9F;
+        public const float power_chang_up=1.2F;
+        public const float power_chang_down=0.8F;
         public const int base_C=60;
         public static char[] split = { '/', ',' };//分割格式
         public class Yingui
@@ -198,6 +198,10 @@ namespace sanciyuandehundan_API
             /// </summary>
             public byte[] diaoshi_anchored = new byte[8];
             /// <summary>
+            /// key补正
+            /// </summary>
+            public byte keybuzheng=0;
+            /// <summary>
             /// 写入可播放的单音轨.mid文件
             /// </summary>
             public System.IO.BinaryWriter writer1;
@@ -206,39 +210,10 @@ namespace sanciyuandehundan_API
             /// </summary>
             public System.IO.BinaryWriter writer2;
 
-            public Yingui(string sheet, int index, int instrument_, int pinlv, int note, int xiaojie_, int power_, int diaoshi, int updown)
+            public Yingui(string sheet, int index_, int instrument_, int pinlv, int note, int xiaojie_, int power_, int diaoshi, int updown,int key)
             {
-                /*instrument = instrument_;//乐器
-
-                tempo_minute = pinlv;//一分钟几个音符
-                note_long = 57600 / pinlv;//设定一个音符几tick
-             
-                int k = 0;
-                xiaojie = xiaojie_;
-                Console.WriteLine("一小节几拍" + xiaojie);
-                if (xiaojie_ != 4)
-                {
-                    k = 3;
-                    xiaojie_split = xiaojie_ / 3;
-                    Console.WriteLine("一小节可以被切成几个3拍" + xiaojie_split);
-                }//其他的拍数
-                else
-                {
-                    k = 2;
-                    xiaojie_split = xiaojie_ / 2;
-                    Console.WriteLine("一小节可以被切成几个2拍" + xiaojie_split);
-                }//一小节4拍是特殊的
-                xiaojie_split_anchored = new int[xiaojie_split];
-                xiaojie_split_anchored[0] = 0;//第一拍必定是强拍
-                for (int i = 1; i < xiaojie_split; i++)
-                {
-                    xiaojie_split_anchored[i] = i * k;
-                }//标记哪几个拍子是强拍
-
-                note_base = 1.0F / note;
-                power = new int[sheet.Split('|').Length];
-                power_base = power_;*/
-                this.index = index;
+                keybuzheng = (byte)key;
+                index = index_;
                 mci_name = "yingui_" + index.ToString();
                 yuepu = sheet;
                 Music_speed(pinlv, this);
@@ -388,6 +363,7 @@ namespace sanciyuandehundan_API
             public void Yingui_open()
             {
                 Console.WriteLine("open: "+mci_play("open " + local_1 + " type sequencer Alias " + mci_name));
+                //Console.WriteLine("setvolume: " + mci_play("setaudio " + mci_name + " volume to " + 100.ToString()));
             }
 
             /// <summary>
@@ -555,6 +531,8 @@ namespace sanciyuandehundan_API
                 //var biao =/ [0-9] g / ;
                 int highdown = 0;//低或高几个八度
                 int updown = 0;
+                if (yingui.instrument == 24) { highdown--; }
+                bool huanyuan=false;
                 foreach (char a in note)
                 {
                     if (a == '-')
@@ -573,6 +551,10 @@ namespace sanciyuandehundan_API
                     {
                         updown++;
                     }//升记号
+                    else if(a == '♮')
+                    {
+                        huanyuan = true;
+                    }//还原记号
                 }
                 int note_ = note.Last() - '0';
                 /*Console.Write("diaoshi:"+yingui.diaoshi);
@@ -581,12 +563,12 @@ namespace sanciyuandehundan_API
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);
                 Console.Write("diaoshi:"+yingui.diaoshi);*/
-                byte note_out= (byte)(base_C + yingui.diaoshi + yingui.diaoshi_anchored[note_-1] + highdown * 12 + updown);
+                byte note_out = (byte)(base_C + yingui.diaoshi + yingui.diaoshi_anchored[note_ - 1] + highdown * 12 + updown);
+                if (huanyuan & yingui.diaoshi == 0) note_out = (byte)(base_C + yingui.diaoshi + dadaio_G[note_ - 1] + highdown * 12);
+                else if (huanyuan & yingui.diaoshi == -20) note_out = (byte)(base_C + yingui.diaoshi + dadaio_F[note_ - 1] + highdown * 12);
+                note_out += yingui.keybuzheng;
                 Console.WriteLine("note:" + note_out);
                 return note_out;
-                //note_=note_*2
-                //return (byte)((note_*2)+(highdown*12)+updown+base_C-2);
-                //return (byte)(yingui.diaoshi_[note_-1] + updown + highdown * 12 + base_C + yingui.diaoshi);
             }
         }
 
