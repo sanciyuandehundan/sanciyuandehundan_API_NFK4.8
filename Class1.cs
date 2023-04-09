@@ -127,7 +127,8 @@ namespace sanciyuandehundan_API
                 "note，一拍是几分音符\n" +
                 "xiaojie，一小节几拍\n" +
                 "power，力度或理解为音量，范围：0~127\n" +
-                "diaoshi，音程比C大调低或高多少\n";
+                "diaoshi，音程比C大调低或高多少\n" +
+                "♭♯♮";
 
             /// <summary>
             /// 该音轨的.mid文件地址
@@ -215,7 +216,7 @@ namespace sanciyuandehundan_API
                 keybuzheng = (byte)key;
                 index = index_;
                 mci_name = "yingui_" + index.ToString();
-                yuepu = sheet;
+                yuepu = sheet.Replace("\n", string.Empty).Replace("\r", string.Empty);
                 Music_speed(pinlv, this);
                 Music_note_base(note, xiaojie_, this);
                 Music_power(power_, this);
@@ -304,6 +305,7 @@ namespace sanciyuandehundan_API
                             }//如果连音线连接的是两相同音符
                             else
                             {
+                                pu2[i + 1][0] = "k";
                                 time_end = 0;
                             }//如果连音线连接的是两不同音符
                         }//如果下一个是连音线
@@ -344,14 +346,16 @@ namespace sanciyuandehundan_API
                     //Console.WriteLine(pu2[i][0]);
                     if (i != pu1.Length - 1|endstop) Music_stream_time((int)(time * time_end + time_stop), this);//分割——————————————————————————
                     time_stop = 0;
-                    time = 0;
+                    //time = 0;
+                    endstop = false;
                 }//音轨
-                if (!endstop) Music_stream_time(xiaojie_note_long, this);//结尾间隔
+                if (!endstop) Music_stream_time(xiaojie_note_long + (int)(time * time_end), this);//结尾间隔
                 Music_stream_end(writer2, this);
                 writer2.Seek(0, SeekOrigin.Begin);
                 writer2.BaseStream.CopyTo(writer1.BaseStream);
                 writer1.Close();
                 writer2.Close();
+                Console.WriteLine("time_all:"+this.time);
             }
 
             internal static int power_time;
@@ -493,9 +497,13 @@ namespace sanciyuandehundan_API
                     }
                 }
                 time = int.Parse(time_);
-                time = (1 / yingui.xiaojie_note_base) / time * yingui.xiaojie_note_long;//计算无附点的长度
-                time *= Math.Pow(1.5, point);//计算附点
-                Console.WriteLine(time);
+                time = (double)(1 / yingui.xiaojie_note_base) / time * (double)(yingui.xiaojie_note_long);//计算无附点的长度
+                for(int j = 1; j <= point; j++)
+                {
+                    time += time / Math.Pow(2, j);
+                }//计算附点
+                //Console.WriteLine("time:" + ((int)time));
+                //yingui.time += ((int)time);
                 return ((int)time);
             }
 
@@ -506,19 +514,19 @@ namespace sanciyuandehundan_API
             internal static void Music_stream_time(int i, Yingui yingui)
             {
                 yingui.time += i;
-                //Console.Write("time:"+i);
+                Console.WriteLine("time: "+i);
                 if (i > 16383)
                 {
                     yingui.writer2.Write((byte)((1 << 7) + (i >> 14)));
-                    //Console.Write(" t3:" + (byte)((1 << 7) + (i >> 14)));
+                    //Console.Write(" " + (byte)((1 << 7) + (i >> 14)));
                 }
                 if (i > 127)
                 {
                     yingui.writer2.Write((byte)((1 << 7) + (i >> 7)));
-                    //Console.Write(" t2:" + (byte)((1 << 7) + (i >> 7)));
+                    //Console.Write(" " + (byte)((1 << 7) + (i >> 7)));
                 }
                 yingui.writer2.Write((byte)(((byte)(i << 1)) >> 1));
-                //Console.WriteLine(" t1:" + (byte)(((byte)(i << 1)) >> 1));
+                //Console.WriteLine(" " + (byte)(((byte)(i << 1)) >> 1));
             }
 
             /// <summary>
@@ -567,7 +575,7 @@ namespace sanciyuandehundan_API
                 if (huanyuan & yingui.diaoshi == 0) note_out = (byte)(base_C + yingui.diaoshi + dadaio_G[note_ - 1] + highdown * 12);
                 else if (huanyuan & yingui.diaoshi == -20) note_out = (byte)(base_C + yingui.diaoshi + dadaio_F[note_ - 1] + highdown * 12);
                 note_out += yingui.keybuzheng;
-                Console.WriteLine("note:" + note_out);
+                //Console.WriteLine("note:" + note_out);
                 return note_out;
             }
         }
