@@ -590,7 +590,7 @@ namespace sanciyuandehundan_API
         }
         ~Midi()
         {
-            Music_close_all();
+            //Music_close_all();
             /*if (midiOut != 0)
             {
                 midiOutClose(midiOut);
