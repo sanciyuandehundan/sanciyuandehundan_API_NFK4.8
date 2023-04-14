@@ -230,6 +230,7 @@ namespace sanciyuandehundan_API
             }
             public void Yingui_parse()
             {
+                xiaojie_ing = 1;
                 Yingui_close();
                 writer1 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_1.mid", FileMode.Create));//创建流，文件
                 writer2 = new BinaryWriter(new FileStream(Environment.CurrentDirectory + "\\yingui" + index.ToString() + "_2.mid", FileMode.Create));//创建流，音轨
@@ -270,6 +271,7 @@ namespace sanciyuandehundan_API
                 double time_end = 0.05;
                 int time_stop = 0;
                 bool endstop=false;
+                bool xiaojie_same=false;
                 for (int i = 0; i < pu1.Length; i++)
                 {
                     if (pu2[i][0].Equals("k"))
@@ -311,14 +313,15 @@ namespace sanciyuandehundan_API
                         }//如果下一个是连音线
                     }//特殊事件
                     forindex_1 = 0;
+                    Console.WriteLine("———————————————————————");
                     foreach (string p in pu2[i])
                     {
                         if (forindex_1 != pu2[i].Length - 1)
                         {
                             writer2.Write((byte)(0x90 + index));//格式
-                            writer2.Write((byte)Music_stream_note(p, this));//音高   
-                            //Console.WriteLine("note:" + (byte)Music_stream_note(p, this));
-                            Music_stream_power(time, this);
+                            writer2.Write((byte)Music_stream_note(p, this,true));//音高
+                            Music_stream_power(time, this,xiaojie_same);
+                            xiaojie_same = true;
                             forindex_1++;
                             if (forindex_1 != pu2[i].Length - 1)
                             {
@@ -326,6 +329,7 @@ namespace sanciyuandehundan_API
                             }//如果下一个指向的还是音符
                         }
                     }//按下
+                    Console.WriteLine("———————————————————————");
                     Music_stream_time((int)(time * (1 - time_end)), this);//分割———————————————————————————————————
                     forindex_1 = 0;
                     foreach (string p in pu2[i])
@@ -333,7 +337,7 @@ namespace sanciyuandehundan_API
                         if (forindex_1 != pu2[i].Length - 1)
                         {
                             writer2.Write((byte)(0x80 + index));//格式
-                            writer2.Write(((byte)Music_stream_note(p, this)));//音高
+                            writer2.Write(((byte)Music_stream_note(p, this,false)));//音高
                             writer2.Write((byte)0);
                             //Music_stream_power(time, this);
                             forindex_1++;
@@ -343,12 +347,14 @@ namespace sanciyuandehundan_API
                             }//如果下一个指向的还是音符
                         }
                     }//放开
+                    xiaojie_same = false;
                     //Console.WriteLine(pu2[i][0]);
                     if (i != pu1.Length - 1|endstop) Music_stream_time((int)(time * time_end + time_stop), this);//分割——————————————————————————
                     time_stop = 0;
                     //time = 0;
                     endstop = false;
                 }//音轨
+                power_time = 0;
                 if (!endstop) Music_stream_time(xiaojie_note_long + (int)(time * time_end), this);//结尾间隔
                 Music_stream_end(writer2, this);
                 writer2.Seek(0, SeekOrigin.Begin);
@@ -358,8 +364,8 @@ namespace sanciyuandehundan_API
                 Console.WriteLine("time_all:"+this.time);
             }
 
-            internal static int power_time;
-            internal static byte power_zan;
+            internal static int power_time=0;
+            internal static byte power_zan=0;
 
             /// <summary>
             /// 打开文件
@@ -402,15 +408,25 @@ namespace sanciyuandehundan_API
                 Console.WriteLine("resume: "+mci_play("play " + mci_name));
             }
 
+            static int xiaojie_ing=1;
             /// <summary>
             /// 写入力度
             /// </summary>
             /// <param name="time"></param>
             /// <param name="yingui"></param>
-            private static void Music_stream_power(int time, Yingui yingui)
+            private static void Music_stream_power(int time, Yingui yingui,bool xiaojie_same)
             {
-                power_time += time;
-                if (power_time > yingui.xiaojie_note_long * yingui.xiaojie_tempo_num) power_time = 0;
+                if (!xiaojie_same)
+                {
+                    power_time += time;
+                    Console.WriteLine("time_ing：" + power_time);
+                }
+                if (power_time >= yingui.xiaojie_note_long * yingui.xiaojie_tempo_num)
+                {
+                    power_time = 0;
+                    Console.WriteLine("小节："+xiaojie_ing);
+                    xiaojie_ing++;
+                }
                 for (int i = 0; i < yingui.xiaojie_tempo_split; i++)
                 {
 
@@ -418,61 +434,23 @@ namespace sanciyuandehundan_API
                     {
                         if (i == 0)
                         {
-                            //Console.WriteLine(power_time + " " + yingui.xiaojie_tempo_split_anchored[i] * yingui.xiaojie_note_long + " " + (yingui.xiaojie_tempo_split_anchored[i] + 1) * yingui.xiaojie_note_long);
-                            //yingui.writer2.Write((byte)(yingui.power_base * power_chang_up));//强
                             power_zan = (byte)(yingui.power_base * power_chang_up);//强
-                            //Console.WriteLine("1");
                             break;
                         }
                         else
                         {
-                            //Console.WriteLine(power_time + " " + yingui.xiaojie_tempo_split_anchored[i] * yingui.xiaojie_note_long + " " + (yingui.xiaojie_tempo_split_anchored[i] + 1) * yingui.xiaojie_note_long);
-                            //yingui.writer2.Write(((byte)yingui.power_base));//次强
                             power_zan = (byte)yingui.power_base;
-                            //Console.WriteLine("0");
                             break;
                         }
                     }
                     else
                     {
-                        //Console.WriteLine(power_time + " " + yingui.xiaojie_tempo_split_anchored[i] * yingui.xiaojie_note_long + " " + (yingui.xiaojie_tempo_split_anchored[i] + 1) * yingui.xiaojie_note_long);
-                        //yingui.writer2.Write((byte)(yingui.power_base * power_chang_down));//弱
                         power_zan = (byte)(yingui.power_base * power_chang_down);
-                        //Console.WriteLine("-1");
                     }
 
                 }
                 yingui.writer2.Write(power_zan);
-                /*power_time += time/yingui.xiaojie_note_long;
-                if (power_time >= yingui.xiaojie_tempo_num) power_time = 0;
-                //yingui.writer2.Write((byte)yingui.power_base);
-                bool a = false;//是否是强拍
-                for (int u = 0; u < yingui.xiaojie_tempo_split; u++)
-                {
-                    if ((int)(power_time - 1) == (int)(yingui.xiaojie_tempo_split_anchored[u]))//检测此音符所在的拍子是否为被标记为强拍的拍子
-                    {
-                        a = true;
-                        if (u == 0)//如果是小节的第一拍则为强拍
-                        {
-                            yingui.writer2.Write((byte)(yingui.power_base * power_chang_up));
-                            Console.Write(1);
-                            Console.WriteLine("power:" + (byte)(yingui.power_base * power_chang_up));
-                        }
-                        else//不是则为次强拍
-                        {
-                            yingui.writer2.Write((byte)yingui.power_base);
-                            Console.Write(0);
-                            Console.WriteLine("power:"+(byte)yingui.power_base);
-                        }
-                        break;
-                    }
-                }
-                if (!a)
-                {
-                    yingui.writer2.Write((byte)(yingui.power_base * power_chang_down));
-                    Console.Write(-1);
-                    Console.WriteLine("power:"+(byte)(yingui.power_base * power_chang_down));
-                }//如果没被标记为强拍则为弱拍*/
+                
             }
 
             /// <summary>
@@ -482,6 +460,7 @@ namespace sanciyuandehundan_API
             /// <returns></returns>
             internal static int Music_stream_time(string i, Yingui yingui)
             {
+                Console.WriteLine("time:"+i);
                 string time_ = "";
                 int point = 0;
                 double time = 0;
@@ -502,8 +481,6 @@ namespace sanciyuandehundan_API
                 {
                     time += time / Math.Pow(2, j);
                 }//计算附点
-                //Console.WriteLine("time:" + ((int)time));
-                //yingui.time += ((int)time);
                 return ((int)time);
             }
 
@@ -534,7 +511,7 @@ namespace sanciyuandehundan_API
             /// </summary>
             /// <param name="note"></param>
             /// <returns></returns>
-            private static byte Music_stream_note(string note, Yingui yingui)
+            private static byte Music_stream_note(string note, Yingui yingui,bool outnote)
             {
                 //var biao =/ [0-9] g / ;
                 int highdown = 0;//低或高几个八度
@@ -565,17 +542,11 @@ namespace sanciyuandehundan_API
                     }//还原记号
                 }
                 int note_ = note.Last() - '0';
-                /*Console.Write("diaoshi:"+yingui.diaoshi);
-                Console.Write("diaoshi_effect:"+diaohao_effect);
-                Console.Write("dadaio[note_]:" + dadaio[note_]);
-                Console.Write("diaoshi:"+yingui.diaoshi);
-                Console.Write("diaoshi:"+yingui.diaoshi);
-                Console.Write("diaoshi:"+yingui.diaoshi);*/
                 byte note_out = (byte)(base_C + yingui.diaoshi + yingui.diaoshi_anchored[note_ - 1] + highdown * 12 + updown);
                 if (huanyuan & yingui.diaoshi == 0) note_out = (byte)(base_C + yingui.diaoshi + dadaio_G[note_ - 1] + highdown * 12);
                 else if (huanyuan & yingui.diaoshi == -20) note_out = (byte)(base_C + yingui.diaoshi + dadaio_F[note_ - 1] + highdown * 12);
                 note_out += yingui.keybuzheng;
-                //Console.WriteLine("note:" + note_out);
+                if(outnote)Console.WriteLine("note:" + note+"     note_out:"+note_out);
                 return note_out;
             }
         }
