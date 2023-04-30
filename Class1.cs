@@ -121,6 +121,11 @@ namespace sanciyuandehundan_API
         public static char[] split = { '/', ',' };//分割格式
         public class Yingui
         {
+            /// <summary>
+            /// 跳过
+            /// </summary>
+            private const string Skip = "k";
+
             public string help =
                 "instrument，midi乐器代码，有列举\n" +
                 "pinlv，一分钟几拍\n" +
@@ -259,8 +264,8 @@ namespace sanciyuandehundan_API
                 {
                     do
                     {
-                        start_stop += Music_stream_time(pu2[forindex_3][1], this);
-                        pu2[forindex_3][0] = "k";
+                        start_stop += Music_stream_time(pu2[forindex_3][1], this.xiaojie_note_base, this.xiaojie_note_long);
+                        pu2[forindex_3][0] = Skip;
                         forindex_3++;
                     } while (pu2[forindex_3][0].Equals("0"));//多个休止符
                 }
@@ -268,17 +273,49 @@ namespace sanciyuandehundan_API
                 int forindex_1 = 0;
                 int forindex_2 = 0;
                 int time = 0;
-                double time_end = 0.05;
+                double time_end = 0.1;
                 int time_stop = 0;
-                bool endstop=false;
-                bool xiaojie_same=false;
+                bool endstop = false;
+                bool xiaojie_same = false;
                 for (int i = 0; i < pu1.Length; i++)
                 {
-                    if (pu2[i][0].Equals("k"))
+                    if (pu2[i][0].Equals(Skip))
                     {
                         continue;
                     }//跳过
-                    time = Music_stream_time(pu2[i].Last(), this);
+
+                    if (pu2[i][0].Equals("pp"))
+                    {
+                        power_base = 0;
+                        continue;
+                    }
+                    else if (pu2[i][0].Equals("p"))
+                    {
+                        power_base = 0;
+                        continue;
+                    }
+                    else if (pu2[i][0].Equals("mp"))
+                    {
+                        power_base = 0;
+                        continue;
+                    }
+                    else if (pu2[i][0].Equals("mf"))
+                    {
+                        power_base = 0;
+                        continue;
+                    }
+                    else if (pu2[i][0].Equals("f"))
+                    {
+                        power_base = 0;
+                        continue;
+                    }
+                    else if (pu2[i][0].Equals("ff"))
+                    {
+                        power_base = 0;
+                        continue;
+                    }//力度符号
+
+                    time = Music_stream_time(pu2[i].Last(), this.xiaojie_note_base, this.xiaojie_note_long);
                     time_end = 0.1;
                     if (i < pu2.GetLength(0) - 1)
                     {
@@ -287,8 +324,8 @@ namespace sanciyuandehundan_API
                             forindex_2 = i + 1;
                             do
                             {
-                                time_stop += Music_stream_time(pu2[forindex_2][1], this);
-                                pu2[forindex_2][0] = "k";
+                                time_stop += Music_stream_time(pu2[forindex_2][1], this.xiaojie_note_base, this.xiaojie_note_long);
+                                pu2[forindex_2][0] = Skip;
                                 forindex_2++;
                                 if (forindex_2 >= pu1.Length)
                                 {
@@ -301,13 +338,13 @@ namespace sanciyuandehundan_API
                         {
                             if (pu2[i + 2][0].Equals(pu2[i][0]))
                             {
-                                time += Music_stream_time(pu2[i + 2].Last(), this);
-                                pu2[i + 1][0] = "k";
-                                pu2[i + 2][0] = "k";
+                                time += Music_stream_time(pu2[i + 2].Last(), this.xiaojie_note_base, this.xiaojie_note_long);
+                                pu2[i + 1][0] = Skip;
+                                pu2[i + 2][0] = Skip;
                             }//如果连音线连接的是两相同音符
                             else
                             {
-                                pu2[i + 1][0] = "k";
+                                pu2[i + 1][0] = Skip;
                                 time_end = 0;
                             }//如果连音线连接的是两不同音符
                         }//如果下一个是连音线
@@ -319,8 +356,8 @@ namespace sanciyuandehundan_API
                         if (forindex_1 != pu2[i].Length - 1)
                         {
                             writer2.Write((byte)(0x90 + index));//格式
-                            writer2.Write((byte)Music_stream_note(p, this,true));//音高
-                            Music_stream_power(time, this,xiaojie_same);
+                            writer2.Write((byte)Music_stream_note(p, this, true));//音高
+                            Music_stream_power(time, this, xiaojie_same);
                             xiaojie_same = true;
                             forindex_1++;
                             if (forindex_1 != pu2[i].Length - 1)
@@ -337,7 +374,7 @@ namespace sanciyuandehundan_API
                         if (forindex_1 != pu2[i].Length - 1)
                         {
                             writer2.Write((byte)(0x80 + index));//格式
-                            writer2.Write(((byte)Music_stream_note(p, this,false)));//音高
+                            writer2.Write(((byte)Music_stream_note(p, this, false)));//音高
                             writer2.Write((byte)0);
                             //Music_stream_power(time, this);
                             forindex_1++;
@@ -349,7 +386,7 @@ namespace sanciyuandehundan_API
                     }//放开
                     xiaojie_same = false;
                     //Console.WriteLine(pu2[i][0]);
-                    if (i != pu1.Length - 1|endstop) Music_stream_time((int)(time * time_end + time_stop), this);//分割——————————————————————————
+                    if (i != pu1.Length - 1 | endstop) Music_stream_time((int)(time * time_end + time_stop), this);//分割——————————————————————————
                     time_stop = 0;
                     //time = 0;
                     endstop = false;
@@ -361,7 +398,7 @@ namespace sanciyuandehundan_API
                 writer2.BaseStream.CopyTo(writer1.BaseStream);
                 writer1.Close();
                 writer2.Close();
-                Console.WriteLine("time_all:"+this.time);
+                Console.WriteLine("time_all:" + this.time);
             }
 
             internal static int power_time=0;
@@ -458,12 +495,22 @@ namespace sanciyuandehundan_API
             /// </summary>
             /// <param name="i"></param>
             /// <returns></returns>
-            internal static int Music_stream_time(string i, Yingui yingui)
+            public static int Music_stream_time(string i, float xiaojie_note_base,int xiaojie_note_long)
             {
-                Console.WriteLine("time:"+i);
+
+                double time = 0;
+                bool lianyin_bool = false;
+                string[] lianyin = { };
+                if (i.First().Equals('[') & i.Last().Equals(']'))//连音
+                {
+                    lianyin = i.TrimStart('[').TrimEnd(']').Split(';');
+                    i = lianyin[1];
+                    lianyin_bool = true;
+                }
+
+                Console.WriteLine("time:" + i);
                 string time_ = "";
                 int point = 0;
-                double time = 0;
                 foreach (char a in i)
                 {
                     if (a == '.')
@@ -476,11 +523,26 @@ namespace sanciyuandehundan_API
                     }
                 }
                 time = int.Parse(time_);
-                time = (double)(1 / yingui.xiaojie_note_base) / time * (double)(yingui.xiaojie_note_long);//计算无附点的长度
-                for(int j = 1; j <= point; j++)
+                time = (double)(1 / xiaojie_note_base) / time * (double)(xiaojie_note_long);//计算无附点的长度
+                for (int j = 1; j <= point; j++)
                 {
                     time += time / Math.Pow(2, j);
                 }//计算附点
+
+                if (lianyin_bool)//连音
+                {
+                    double zan;
+                    zan = time % int.Parse(lianyin[0]);
+                    time /= int.Parse(lianyin[0]);
+                    Console.WriteLine("zan:"+zan);
+                    if (zan != 0)
+                    {
+                        if (zan >= int.Parse(lianyin[2]))
+                        {
+                            time++;
+                        }
+                    }
+                }
                 return ((int)time);
             }
 
@@ -511,7 +573,7 @@ namespace sanciyuandehundan_API
             /// </summary>
             /// <param name="note"></param>
             /// <returns></returns>
-            private static byte Music_stream_note(string note, Yingui yingui,bool outnote)
+            public static byte Music_stream_note(string note, Yingui yingui,bool outnote)
             {
                 //var biao =/ [0-9] g / ;
                 int highdown = 0;//低或高几个八度
