@@ -423,7 +423,7 @@ namespace sanciyuandehundan_API
                 }
                 if (power_time >= yingui.xiaojie_note_long * yingui.xiaojie_tempo_num)
                 {
-                    power_time = 0;
+                    power_time -= yingui.xiaojie_note_long * yingui.xiaojie_tempo_num;
                     Console.WriteLine("小节："+xiaojie_ing);
                     xiaojie_ing++;
                 }
