@@ -710,34 +710,57 @@ namespace sanciyuandehundan_API
             yingui.diaoshi_updpwn = updown;
 
             int zan1 = updown % 7;
-            if (zan1 < 0) zan1 *= -1;
+            Console.WriteLine("updown % 7  " + updown % 7);
+            //if (zan1 < 0) zan1 *= -1;
+            if (zan1 > 0)
+            {
+                byte[] diao1 = new byte[zan1];
+                byte[] diao2 = new byte[7 - zan1];
 
-            byte[] diao1 = new byte[zan1];
-            byte[] diao2 = new byte[7 - zan1];
+                for (int i = 7 - zan1; i < 7; i++)
+                {
+                    if (diaoshi_ == 0) diao1[i - 7 + zan1] = dadaio_G[i];
+                    if (diaoshi_ == -20) diao1[i - 7 + zan1] = dadaio_F[i];
+                }
+                for (int i = 0; i < 7 - zan1; i++)
+                {
+                    if (diaoshi_ == 0) diao2[i] = dadaio_G[i];
+                    if (diaoshi_ == -20) diao2[i] = dadaio_F[i];
+                }
+                diao1.CopyTo(zan2, 0);
+                diao2.CopyTo(zan2, zan1);
+                zan2.CopyTo(yingui.diaoshi_anchored, 1);
+                foreach (byte b in diao1) Console.WriteLine("d1:" + b);
+                foreach (byte b in diao2) Console.WriteLine("d2:" + b);
+                foreach (byte b in zan2) Console.WriteLine("z2:" + b);
+                if (zan2.Last() == 2 & diaoshi_ != -20) yingui.diaoshi_anchored[0] = 1;
+                for (int i = 1; i < 8; i++)
+                {
+                    yingui.diaoshi_anchored[i] += yingui.diaoshi_anchored[i - 1];
+                }
+                Console.WriteLine("______________");
+                foreach (byte b in yingui.diaoshi_anchored) Console.WriteLine(b);
+            }//升记号
+            else if (zan1 == 0)
+            {
+                if (diaoshi_ == 0)
+                {
+                    dadaio_G.CopyTo(yingui.diaoshi_anchored, 1);
+                }
+                else if (diaoshi_ == -20)
+                {
+                    dadaio_F.CopyTo(yingui.diaoshi_anchored, 1);
+                }
+                if (updown < 0)
+                    for (int i = 0; i < 8; i++)
+                    {
+                        yingui.diaoshi_anchored[i] += (byte)(yingui.diaoshi_anchored[i - 1] + 1);
+                    }
+            }//全升或降一个半音
+            else
+            {
 
-            for (int i = 7 - zan1; i < 7; i++)
-            {
-                if (diaoshi_ == 0) diao1[i - 7 + zan1] = dadaio_G[i];
-                if (diaoshi_ == -20) diao1[i - 7 + zan1] = dadaio_F[i];
-            }
-            for (int i = 0; i < 7 - zan1; i++)
-            {
-                if (diaoshi_ == 0) diao2[i] = dadaio_G[i];
-                if (diaoshi_ == -20) diao2[i] = dadaio_F[i];
-            }
-            diao1.CopyTo(zan2, 0);
-            diao2.CopyTo(zan2, zan1);
-            zan2.CopyTo(yingui.diaoshi_anchored, 1);
-            foreach (byte b in diao1) Console.WriteLine("d1:" + b);
-            foreach (byte b in diao2) Console.WriteLine("d2:" + b);
-            foreach (byte b in zan2) Console.WriteLine("z2:" + b);
-            if (zan2.Last() == 2&diaoshi_!=-20) yingui.diaoshi_anchored[0] = 1;
-            for (int i = 1; i < 8; i++)
-            {
-                yingui.diaoshi_anchored[i] += yingui.diaoshi_anchored[i - 1];
-            }
-            Console.WriteLine("______________");
-            foreach (byte b in yingui.diaoshi_anchored) Console.WriteLine(b);
+            }//降记号
         }//低音E、高音C
 
         public static void Music_parse_hebin(string[] paths,int note_long) {
